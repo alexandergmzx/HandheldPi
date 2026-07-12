@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+var/
+*.jsonl
+*.db
+*.db-wal
+*.db-shm
+/firmware/*.bin
+.pytest_cache/
+scripts/mipi-dbi-cmd

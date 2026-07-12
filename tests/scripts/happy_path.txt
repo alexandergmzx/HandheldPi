@@ -1,0 +1,18 @@
+# HHT-TC-030 — full pick cycle: badge login, task, location, article, confirm
+reset_queue
+tick
+expect_state LOGIN_BADGE
+scan OP:1001
+expect_state IDLE
+press a
+expect_state GOTO_LOCATION
+scan LOC:A-01-03
+expect_state SCAN_ARTICLE
+scan ART:8412345678905
+expect_state SET_QUANTITY
+press a
+expect_state CONFIRMED
+flush
+expect_queue 0
+wait 3
+expect_state IDLE

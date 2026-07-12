@@ -1,0 +1,42 @@
+# Development config — run the whole terminal on any Linux box over SSH, no hardware:
+#   python -m hht -c config/dev.toml
+# Keyboard drives the gamepad, ':' injects a scan, the screen renders in the terminal.
+
+[device]
+id = "HHT-DEV"
+site = "DEV"
+
+[wms]
+backend = "mock"
+base_url = "http://localhost:8080"
+timeout_s = 2.0
+retry_interval_s = 5.0
+
+[scanner]
+backend = "mock"
+debounce_s = 2.0
+
+[display]
+backend = "console"     # ANSI rendering in the terminal; try "image" for PNG dumps
+image_dir = "var/screens"
+
+[input]
+backend = "keyboard"
+hold_start_s = 1.5
+
+[workflow]
+error_banner_s = 2.5
+allow_short_pick = true
+pin_length = 4
+
+[logging]
+file = "var/hht-dev.jsonl"
+level = "DEBUG"
+max_bytes = 1048576
+backup_count = 2
+
+[queue]
+db_path = "var/dev-queue.db"
+
+[mock]
+operators = ["1001:Alice:1234", "1002:Bob:5678"]

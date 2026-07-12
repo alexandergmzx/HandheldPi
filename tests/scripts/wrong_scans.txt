@@ -1,0 +1,25 @@
+# HHT-TC-032/033 — wrong scans are rejected with an error, workflow stays put
+reset_queue
+tick
+scan OP:1001
+press a
+expect_state GOTO_LOCATION
+
+scan LOC:Z-99-99
+expect_error WRONG LOCATION
+expect_state GOTO_LOCATION
+
+scan ART:8412345678905          # right article, wrong moment
+expect_error LOCATION first
+expect_state GOTO_LOCATION
+wait 3
+expect_no_error
+
+scan LOC:A-01-03
+expect_state SCAN_ARTICLE
+scan ART:0000000000000
+expect_error WRONG ARTICLE
+expect_state SCAN_ARTICLE
+
+scan 8412345678905              # bare EAN (no ART: prefix) must also work
+expect_state SET_QUANTITY

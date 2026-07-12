@@ -1,0 +1,98 @@
+# For more options and information see
+# http://rptl.io/configtxt
+# Some settings may impact device functionality. See link above for details
+
+# Uncomment some or all of these to enable the optional hardware interfaces
+dtparam=i2c_arm=on
+#dtparam=i2s=on
+# HHT: SPI is REQUIRED for the ST7789V display. It is enabled in the managed
+# display block at the end of this file, so this stock line stays commented to
+# avoid a duplicate (dtparam is idempotent, but one source of truth is cleaner).
+#dtparam=spi=on
+
+# Enable audio (loads snd_bcm2835)
+# HHT: harmless as-is (loads the driver only, no GPIO routing). WARNING: if you
+# ever wire the GamePi20 PWM speaker, do NOT route audio to GPIO13 — that pin is
+# the D-pad Right button. We don't need audio for the PoC.
+dtparam=audio=on
+
+# Additional overlays and parameters are documented
+# /boot/firmware/overlays/README
+
+# Automatically load overlays for detected cameras
+# HHT: manual camera setup here (auto-detect off + explicit imx708 in [all]).
+# Verify the port label on the Zero 2 W — see the note in the [all] section.
+camera_auto_detect=0
+#dtoverlay=imx708,cam0
+
+# Automatically load overlays for detected DSI displays
+# HHT: DSI auto-detect only; does not touch our SPI panel — safe to leave on.
+display_auto_detect=1
+
+# Automatically load initramfs files, if found
+auto_initramfs=1
+
+# Enable DRM VC4 V3D driver
+# HHT: REQUIRED. The mipi-dbi SPI panel registers under KMS. The HDMI/vc4
+# framebuffer enumerates as fb0; the ST7789V panel comes up as fb1 — the app's
+# display.fb_device = "auto" finds it by name, so the two-fb split is expected.
+dtoverlay=vc4-kms-v3d
+max_framebuffers=2
+
+# Don't have the firmware create an initial video= setting in cmdline.txt.
+# Use the kernel's default instead.
+disable_fw_kms_setup=1
+
+# Run in 64-bit mode
+arm_64bit=1
+
+# Disable compensation for displays with overscan
+disable_overscan=1
+
+# Run as fast as firmware / board allows
+arm_boost=1
+
+[cm4]
+# Enable host mode on the 2711 built-in XHCI USB controller.
+# This line should be removed if the legacy DWC2 controller is required
+# (e.g. for USB device mode) or if USB support is not required.
+otg_mode=1
+
+[cm5]
+dtoverlay=dwc2,dr_mode=host
+
+[pi5]
+dtoverlay=nospi10
+
+[all]
+dtparam=uart0=on
+#camera_auto_detect=0
+# HHT: Camera Module 3 (IMX708). The ,cam0 port label is meaningful mainly on
+# dual-port boards (Pi 5 / CM4). On the Zero 2 W's single CSI connector, VERIFY
+# with `rpicam-hello --list-cameras`. If the list is empty, use `dtoverlay=imx708`
+# (no port) OR set camera_auto_detect=1 above and delete this line.
+dtoverlay=imx708,cam0
+
+# --- HHT GamePi20 display (managed by setup_display.sh) ---
+# ST7789V 2.0" 320x240 SPI IPS panel via the mainline panel-mipi-dbi TinyDRM
+# driver. This is the supported path on bookworm/trixie — fbcp-ili9341/rpi-fbcp are dead
+# here because DispmanX was removed with the move to the KMS stack (see PLAN.md).
+#
+# The init sequence lives in firmware/st7789v_gamepi20.txt and is compiled to
+# /lib/firmware/st7789v.bin by scripts/setup_display.sh; the driver loads that
+# blob because the first compatible string below is "st7789v".
+#
+# Pins (BCM):  DC=25  RESET=27  BACKLIGHT=24  on SPI0 CE0 (MOSI=10, SCLK=11).
+# The panel is write-only (no MISO), hence dtparam=write-only.
+#
+# Tuning (nothing shown / garbage pixels / wrong colors / rotation): edit the
+# firmware .txt (MADCTL 0x36, VCOMS 0xbb, INVON 0x21) and re-run setup_display.sh,
+# or lower speed= to 32000000 — full table in docs/DEVICE_CONFIGURATION.md §3.4.
+dtparam=spi=on
+dtoverlay=mipi-dbi-spi,spi0-0,speed=48000000
+dtparam=compatible=st7789v\0panel-mipi-dbi-spi
+dtparam=width=320,height=240
+dtparam=reset-gpio=27,dc-gpio=25
+dtparam=backlight-gpio=24
+dtparam=write-only
+# --- HHT GamePi20 display end ---

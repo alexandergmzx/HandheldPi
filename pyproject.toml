@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hht"
+version = "0.1.0"
+description = "DIY warehouse hand-held picking terminal (GamePi20 + Pi Zero 2W + PiCamera)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Kept to what apt provides on Raspberry Pi OS bookworm (python3-requests,
+    # python3-pil, python3-numpy) so a --system-site-packages venv installs nothing heavy.
+    "requests>=2.28",
+    "Pillow>=9.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+# Hardware-only deps come from apt, NOT pip (must match the system libcamera):
+#   python3-picamera2 (--no-install-recommends), python3-pyzbar,
+#   python3-gpiozero, python3-lgpio
+
+[project.scripts]
+hht = "hht.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

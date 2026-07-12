@@ -1,0 +1,19 @@
+# HandheldPi picking terminal — installed by scripts/install.sh, which replaces
+# @REPO_DIR@ and @RUN_USER@ with the actual clone location and user.
+[Unit]
+Description=HHT warehouse picking terminal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@RUN_USER@
+SupplementaryGroups=video render gpio spi
+WorkingDirectory=@REPO_DIR@
+ExecStart=@REPO_DIR@/.venv/bin/python -m hht -c /etc/hht/hht.toml
+Restart=on-failure
+RestartSec=3
+# JSON-lines log goes to [logging] file from the config; journal gets stderr.
+
+[Install]
+WantedBy=multi-user.target

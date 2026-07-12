@@ -1,0 +1,63 @@
+# HandheldPi device configuration — copy to /etc/hht/hht.toml and edit per unit.
+# Every deployment-specific value lives here; the code hardcodes nothing.
+
+[device]
+id = "HHT-001"          # unique per unit — set during provisioning
+site = "MAD-01"
+
+[wms]
+backend = "http"        # http | mock
+base_url = "http://192.168.1.50:8080"
+timeout_s = 5.0         # per-request timeout
+retry_interval_s = 30.0 # offline-queue retry / connectivity probe period
+
+[scanner]
+backend = "camera"      # camera | mock (mock = scans injected by keyboard/script)
+debounce_s = 2.0        # suppress identical payload re-reads within this window
+frame_size = [640, 480] # lores decode stream
+af_mode = "continuous"  # continuous | manual  (Camera Module 3)
+lens_position = 6.6     # dioptres (~15 cm) when af_mode = "manual"
+
+[display]
+backend = "framebuffer" # framebuffer | console | image
+fb_device = "auto"      # "auto" finds the mipi-dbi panel, or e.g. "/dev/fb1"
+rotation = 0            # 0 | 90 | 180 | 270 (CW, applied before blit)
+
+[input]
+backend = "gpio"        # gpio | keyboard
+hold_start_s = 1.5      # hold Start this long to log out
+
+# GamePi20 button map, BCM numbering, active-low with internal pull-ups.
+# Verified against Waveshare's mk_arcade_joystick_rpi RetroPie config; re-check in
+# Phase 0 with `python -m hht.tools.buttontest` (board revisions may differ).
+[input.pins]
+up = 12
+down = 20
+left = 21
+right = 13
+start = 26
+select = 16
+a = 23
+b = 4
+x = 22
+y = 17
+l = 5
+r = 6
+
+[workflow]
+error_banner_s = 2.5    # error / confirmation banner display time
+allow_short_pick = true # allow confirming qty < requested
+pin_length = 4
+
+[logging]
+file = "/var/log/hht/hht.jsonl"  # JSON-lines, one event per line
+level = "INFO"
+max_bytes = 1048576
+backup_count = 5
+
+[queue]
+db_path = "/var/lib/hht/queue.db" # persistent offline confirmation queue (sqlite)
+
+[mock]                  # only used when wms.backend = "mock"
+tasks_file = ""         # optional JSON fixture; empty = built-in sample tasks
+operators = ["1001:Alice:1234", "1002:Bob:5678"]  # id:name:pin

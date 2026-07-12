@@ -1,0 +1,21 @@
+# HHT-TC-040 — WiFi loss: confirmation queues offline, re-sends on reconnect
+reset_queue
+tick
+scan OP:1001
+press a
+scan LOC:A-01-03
+scan ART:8412345678905
+expect_state SET_QUANTITY
+
+wms offline                     # pull the plug mid-task
+press down                      # short pick: 2 of 3
+press a
+expect_state CONFIRMED          # operator is never blocked by the network
+expect_queue 1
+
+flush                           # delivery attempt while still offline
+expect_queue 1                  # nothing lost, nothing sent
+
+wms online                      # WiFi back
+flush
+expect_queue 0                  # queue drained
