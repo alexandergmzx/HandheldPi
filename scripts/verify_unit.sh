@@ -67,6 +67,22 @@ else
     ko "camera imx708 not detected (check FFC cable + overlay)"
 fi
 
+# --- audio ------------------------------------------------------------------
+check "config.txt: HHT GamePi20 audio block present" \
+    grep -q "HHT GamePi20 audio" "$CONFIG_TXT"
+check "config.txt: PWM audio routed to GPIO18/19" \
+    grep -q '^dtoverlay=audremap,pins_18_19$' "$CONFIG_TXT"
+check "alsa-utils installed (aplay)" command -v aplay
+check "bcm2835 Headphones ALSA device available" \
+    sh -c "aplay -L | grep -q 'CARD=Headphones'"
+check "all generated workflow sound cues present" \
+    "$PY" -c "
+from pathlib import Path
+from hht.audio import SoundCue
+p = Path(r'$REPO_DIR/assets/sounds')
+assert all((p / f'{cue.value}.wav').is_file() for cue in SoundCue)
+"
+
 # --- application ------------------------------------------------------------
 check "venv app runs ($PY -m hht --version)" "$PY" -m hht --version
 check "device config parses and validates" \
@@ -82,6 +98,12 @@ check "config: framebuffer display backend" \
 from hht.config import load_config
 assert load_config(r'$CFG').display.backend == 'framebuffer'
 "
+check "config: ALSA audio backend" \
+    "$PY" -c "
+from hht.config import load_config
+c = load_config(r'$CFG')
+assert c.audio.backend == 'alsa' and 'Headphones' in c.audio.device
+"
 
 # --- service ----------------------------------------------------------------
 check "hht.service enabled (starts at boot, no login needed)" \
@@ -93,7 +115,7 @@ if systemctl is-active --quiet hht; then ok "hht.service active"; \
 
 RUN_USER="$(grep -s '^User=' /etc/systemd/system/hht.service | cut -d= -f2)"
 RUN_USER="${RUN_USER:-$USER}"
-for grp in video gpio spi; do
+for grp in video gpio spi audio; do
     check "user $RUN_USER in group $grp" \
         sh -c "id -nG '$RUN_USER' | tr ' ' '\n' | grep -qx $grp"
 done

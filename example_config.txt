@@ -11,9 +11,8 @@ dtparam=i2c_arm=on
 #dtparam=spi=on
 
 # Enable audio (loads snd_bcm2835)
-# HHT: harmless as-is (loads the driver only, no GPIO routing). WARNING: if you
-# ever wire the GamePi20 PWM speaker, do NOT route audio to GPIO13 — that pin is
-# the D-pad Right button. We don't need audio for the PoC.
+# HHT: this loads the driver; GPIO routing is owned by setup_audio.sh below.
+# Never use audremap's pins_12_13 default: those are D-pad Up and Right.
 dtparam=audio=on
 
 # Additional overlays and parameters are documented
@@ -73,6 +72,14 @@ dtparam=uart0=on
 # never probed. Verify with `dmesg | grep imx708` ("camera module ID 0x0301")
 # and `rpicam-hello --list-cameras`.
 dtoverlay=imx708
+
+# --- HHT GamePi20 audio (managed by setup_audio.sh) ---
+# GamePi20's onboard headphone/speaker circuit takes PWM audio from GPIO18
+# (physical pin 12). GPIO19 is unconnected; routing both channels is the
+# standard audremap option and leaves all gamepad buttons available.
+dtparam=audio=on
+dtoverlay=audremap,pins_18_19
+# --- HHT GamePi20 audio end ---
 
 # --- HHT GamePi20 display (managed by setup_display.sh) ---
 # ST7789V 2.0" 320x240 SPI IPS panel via the mainline panel-mipi-dbi TinyDRM

@@ -8,8 +8,10 @@ scan ART:8412345678905
 expect_state SET_QUANTITY
 
 wms offline                     # pull the plug mid-task
+expect_sound offline
 press down                      # short pick: 2 of 3
 press a
+expect_sound confirmed
 expect_state CONFIRMED          # operator is never blocked by the network
 expect_queue 1
 

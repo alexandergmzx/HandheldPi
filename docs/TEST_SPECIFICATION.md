@@ -36,6 +36,14 @@ artifacts at the configured SPI clock.
 15 cm from the test QR sheet.
 **Expected:** `imx708` listed; QR sharp in the capture.
 
+### HHT-TC-004 — GamePi20 audio routing and noise baseline
+**Priority** high · **Type** manual
+**Steps:** execute DEVICE_CONFIGURATION §3.5.1 on battery and clean USB power, then
+play `assets/sounds/ready.wav` through the configured ALSA device and repeat the Up/Right
+button checks.
+**Expected:** PWM audio is on GPIO18; ready cue is clean at low volume; GPIO12/GPIO13
+remain buttons; switch-time versus sustained noise is recorded rather than guessed.
+
 ## 01x — Scanner (device, phase 1)
 
 ### HHT-TC-010 — Decode latency
@@ -50,6 +58,19 @@ artifacts at the configured SPI clock.
 **Steps:** hold the same QR steady in view for 10 s.
 **Expected:** exactly one `scan_decoded` event (payload continuously in view never
 re-fires); removing it for > `debounce_s` and re-presenting fires again.
+
+### HHT-TC-012 — Semantic scan sounds
+**Priority** medium · **Type** pytest `test_semantic_sound_cues_follow_workflow_outcomes`
++ script `happy_path.txt` / `wrong_scans.txt` · **Manual** speaker check
+**Expected:** accepted badge, location, and article have distinct cues; a rejected or
+out-of-order scan uses the error cue; confirmation is distinct. Raw decode does not
+produce an optimistic cue before workflow validation.
+
+### HHT-TC-013 — Audio is non-blocking and fail-open
+**Priority** high · **Type** pytest `test_alsa_play_is_non_blocking_and_uses_configured_device`,
+`test_sound_adapter_failure_does_not_break_workflow`
+**Expected:** queuing a cue returns immediately; missing/broken playback never changes
+workflow state or crashes the application.
 
 ## 02x — Login
 
@@ -188,5 +209,6 @@ windows consistent with what was done.
 | Wrong scans produce errors | TC-032, TC-033 |
 | Offline queue + re-send | TC-040…044 |
 | Fully configurable device | TC-002 (pin remap), config tests in `tests/test_config.py` |
+| Audible scan feedback | TC-004, TC-012, TC-013 |
 | Auto-start terminal appliance | TC-050, TC-051 |
 | Analyzable logs | TC-052 |

@@ -28,6 +28,9 @@ def env(cfg, tmp_path):
     wms = MockWmsClient(cfg)
     queue = OfflineQueue(cfg.queue.db_path)
     clock = FakeClock()
-    sm = PickingStateMachine(cfg, wms, queue, clock=clock)
-    yield SimpleNamespace(cfg=cfg, wms=wms, queue=queue, clock=clock, sm=sm)
+    sounds = []
+    sm = PickingStateMachine(cfg, wms, queue, play_sound=sounds.append, clock=clock)
+    yield SimpleNamespace(
+        cfg=cfg, wms=wms, queue=queue, clock=clock, sm=sm, sounds=sounds,
+    )
     queue.close()

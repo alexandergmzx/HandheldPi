@@ -24,6 +24,9 @@ image_dir = "var/screens"
 backend = "keyboard"
 hold_start_s = 1.5
 
+[audio]
+backend = "none"        # semantic cues are still exercised by unit/script tests
+
 [workflow]
 error_banner_s = 2.5
 allow_short_pick = true

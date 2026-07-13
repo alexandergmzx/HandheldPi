@@ -8,7 +8,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=@RUN_USER@
-SupplementaryGroups=video render gpio spi
+SupplementaryGroups=video render gpio spi audio
 WorkingDirectory=@REPO_DIR@
 ExecStart=@REPO_DIR@/.venv/bin/python -m hht -c /etc/hht/hht.toml
 Restart=on-failure

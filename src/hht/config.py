@@ -53,6 +53,14 @@ class InputCfg:
 
 
 @dataclass
+class AudioCfg:
+    backend: str = "none"  # alsa | none
+    device: str = "default"
+    sounds_dir: str = "assets/sounds"
+    queue_size: int = 8
+
+
+@dataclass
 class WorkflowCfg:
     error_banner_s: float = 2.5
     allow_short_pick: bool = True
@@ -85,6 +93,7 @@ class AppConfig:
     scanner: ScannerCfg
     display: DisplayCfg
     input: InputCfg
+    audio: AudioCfg
     workflow: WorkflowCfg
     logging: LoggingCfg
     queue: QueueCfg
@@ -96,6 +105,7 @@ _CHOICES = {
     ("scanner", "backend"): {"camera", "mock"},
     ("display", "backend"): {"framebuffer", "console", "image"},
     ("input", "backend"): {"gpio", "keyboard"},
+    ("audio", "backend"): {"alsa", "none"},
     ("scanner", "af_mode"): {"continuous", "manual"},
 }
 
@@ -145,6 +155,7 @@ def load_config(path: str | Path) -> AppConfig:
             scanner=ScannerCfg(**scn),
             display=DisplayCfg(**_section(data, "display")),
             input=InputCfg(**inp),
+            audio=AudioCfg(**_section(data, "audio")),
             workflow=WorkflowCfg(**_section(data, "workflow")),
             logging=LoggingCfg(**_section(data, "logging")),
             queue=QueueCfg(**_section(data, "queue")),
@@ -159,4 +170,6 @@ def load_config(path: str | Path) -> AppConfig:
             raise ConfigError(f"{path}: [{sec}] {key}='{val}' not in {sorted(allowed)}")
     if cfg.input.backend == "gpio" and len(cfg.input.pins) < 12:
         raise ConfigError(f"{path}: [input.pins] gpio backend needs all 12 buttons mapped")
+    if not 1 <= cfg.audio.queue_size <= 64:
+        raise ConfigError(f"{path}: [audio] queue_size must be between 1 and 64")
     return cfg

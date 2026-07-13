@@ -79,6 +79,24 @@ driver order: up,down,left,right,start,select,a,b,tr,y,x,tl). All buttons are
 No overlap with SPI0 (8/9/10/11) or display control pins (24/25/27).
 **Phase 0 verifies every pin on real hardware** — this table is research, not gospel.
 
+### Audio (GamePi20)
+
+- Waveshare's pinout and schematic route the onboard headphone/speaker circuit from
+  **GPIO18 (physical pin 12)** through an NS8002 amplifier. GPIO19 is unconnected.
+- Raspberry Pi PWM audio is enabled with `dtparam=audio=on` and
+  `dtoverlay=audremap,pins_18_19`. Never use audremap's default `pins_12_13` on this
+  unit: GPIO12 and GPIO13 are D-pad Up and Right.
+- A pop or buzz that begins at the physical power switch can precede Linux pin control;
+  software cues cannot prove or repair an amplifier-ground/power fault. Bring-up records
+  switch timing, power source, potentiometer position, and speaker/headphone behavior
+  before any component change.
+- Application cues are short generated WAVs played through a bounded worker queue. The
+  main loop never waits for ALSA, and the `none` backend keeps development/tests silent.
+
+Sources: [Waveshare GamePi20 pinout](https://www.waveshare.com/wiki/GamePi20),
+[GamePi20 schematic](https://www.waveshare.net/w/upload/d/de/GamePi20_Schematic.pdf),
+[Raspberry Pi overlay README](https://github.com/raspberrypi/firmware/blob/master/boot/overlays/README).
+
 ### Camera
 
 - Camera Module 3 (IMX708) on the Zero's 22-pin CSI connector (needs the Zero-width FFC).
@@ -179,6 +197,9 @@ QR at 15 cm, all documented in docs/DEVICE_CONFIGURATION.md with actual values.
       login + debounce confirmed on hardware — Phase 1's core numbers, measured early)*
 - [ ] Battery sanity: run display+camera+WiFi loop 30 min on battery, watch for brownout
       (`vcgencmd get_throttled`). Record runtime estimate.
+- [ ] Audio/noise baseline: run DEVICE_CONFIGURATION §3.5.1 on battery and USB power;
+      classify switch-time pop vs sustained buzz, verify GPIO18 PWM sound and headphones,
+      then repeat the 12-button sweep.
 - [ ] Fill in the "as-built" column in docs/DEVICE_CONFIGURATION.md.
 
 Risks: unknown GamePi20 board revision (pin map), init-sequence tuning, camera FFC
@@ -192,8 +213,10 @@ Exit criteria: point at QR → decoded payload on LCD < 500 ms typical, no dupli
       ScanEvents.
 - [ ] Debounce: same payload suppressed for `scanner.debounce_s` (default 2 s); different
       payload accepted immediately.
-- [ ] On-screen feedback: last code, symbology, decode latency; beep-equivalent flash
-      (invert screen 100 ms) on accept.
+- [x] Semantic sound feedback: distinct non-blocking cues for accepted badge/location/
+      article, rejection, offline transition, ready, and confirmation; silent test backend.
+- [ ] On-screen feedback: last code, symbology, decode latency; invert screen 100 ms on
+      accept as an accessibility/fallback equivalent to sound.
 - [ ] Measure and record decode latency + CPU on Zero 2 W (goes in test report).
 - [ ] Test cases HHT-TC-01x (see docs/TEST_SPECIFICATION.md).
 
@@ -245,4 +268,5 @@ hht` green after reboot; test report filled in.
 
 `python3-picamera2` (no-recommends), `python3-pyzbar`, `python3-pil`, `python3-numpy`,
 `python3-requests`, `python3-gpiozero` + `python3-lgpio`, `fonts-dejavu-core`,
-`python3-pytest` (dev). Stdlib: `tomllib`, `sqlite3`, `logging`, `queue`, `threading`.
+`alsa-utils`, `python3-pytest` (dev). Stdlib: `tomllib`, `sqlite3`, `logging`, `queue`,
+`threading`.

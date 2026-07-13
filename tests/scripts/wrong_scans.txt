@@ -6,20 +6,25 @@ press a
 expect_state GOTO_LOCATION
 
 scan LOC:Z-99-99
+expect_sound error
 expect_error WRONG LOCATION
 expect_state GOTO_LOCATION
 
 scan ART:8412345678905          # right article, wrong moment
+expect_sound error
 expect_error LOCATION first
 expect_state GOTO_LOCATION
 wait 3
 expect_no_error
 
 scan LOC:A-01-03
+expect_sound location_accepted
 expect_state SCAN_ARTICLE
 scan ART:0000000000000
+expect_sound error
 expect_error WRONG ARTICLE
 expect_state SCAN_ARTICLE
 
 scan 8412345678905              # bare EAN (no ART: prefix) must also work
+expect_sound article_accepted
 expect_state SET_QUANTITY

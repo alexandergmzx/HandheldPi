@@ -16,6 +16,8 @@ def test_example_config_loads():
     assert len(cfg.input.pins) == 12
     assert cfg.input.pins[Button.A] == 23  # GamePi20 map
     assert cfg.scanner.frame_size == (640, 480)
+    assert cfg.audio.backend == "alsa"
+    assert "Headphones" in cfg.audio.device
 
 
 def test_dev_config_loads():
@@ -23,6 +25,7 @@ def test_dev_config_loads():
     assert cfg.wms.backend == "mock"
     assert cfg.scanner.backend == "mock"
     assert cfg.display.backend == "console"
+    assert cfg.audio.backend == "none"
 
 
 def test_missing_device_id(tmp_path):
@@ -50,6 +53,13 @@ def test_invalid_backend_choice(tmp_path):
     p = tmp_path / "bad.toml"
     p.write_text('[device]\nid = "H"\n[display]\nbackend = "hologram"\n')
     with pytest.raises(ConfigError, match="hologram"):
+        load_config(p)
+
+
+def test_invalid_audio_queue_size(tmp_path):
+    p = tmp_path / "bad.toml"
+    p.write_text('[device]\nid = "H"\n[audio]\nqueue_size = 0\n')
+    with pytest.raises(ConfigError, match="queue_size"):
         load_config(p)
 
 

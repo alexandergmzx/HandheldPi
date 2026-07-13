@@ -22,6 +22,8 @@
 | OS / kernel | |
 | WMS | mock / Spring Boot `<version>` at `<url>` |
 | Network | e.g. warehouse WiFi, AP model, RSSI at test spot |
+| Audio | ALSA device; battery/USB; speaker/headphones; potentiometer position |
+| Power-on noise | none / click / buzz / hiss; start time and duration |
 | Test data | mock built-ins / server dataset reference |
 
 ## 3. Results

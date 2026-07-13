@@ -1,6 +1,7 @@
 """Unit tests for the picking workflow. Test IDs reference docs/TEST_SPECIFICATION.md."""
 
-from hht.events import Button, ButtonEvent, ScanEvent, TickEvent
+from hht.audio import SoundCue
+from hht.events import Button, ButtonEvent, NetStatusEvent, ScanEvent, TickEvent
 from hht.state_machine import State
 
 TASK1_LOC = "A-01-03"
@@ -106,6 +107,40 @@ def test_happy_path_full_pick(env):
     env.sm.handle(TickEvent())
     assert env.sm.state is State.IDLE
     assert env.sm.task is None
+
+
+def test_semantic_sound_cues_follow_workflow_outcomes(env):
+    env.sm.handle(TickEvent())
+    env.sm.handle(ScanEvent("OP:1001"))
+    press(env.sm, "a")
+    env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}"))
+    env.sm.handle(ScanEvent("ART:0000000000000"))
+    env.sm.handle(ScanEvent(f"ART:{TASK1_ART}"))
+    press(env.sm, "a")
+
+    assert env.sounds == [
+        SoundCue.READY,
+        SoundCue.BADGE_ACCEPTED,
+        SoundCue.LOCATION_ACCEPTED,
+        SoundCue.ERROR,
+        SoundCue.ARTICLE_ACCEPTED,
+        SoundCue.CONFIRMED,
+    ]
+
+
+def test_offline_cue_only_fires_on_transition(env):
+    env.sm.handle(NetStatusEvent(False))
+    env.sm.handle(NetStatusEvent(False))
+    assert env.sounds == [SoundCue.OFFLINE]
+
+
+def test_sound_adapter_failure_does_not_break_workflow(env):
+    def broken_sound(cue):
+        raise RuntimeError("speaker missing")
+
+    env.sm.play_sound = broken_sound
+    env.sm.handle(TickEvent())
+    assert env.sm.state is State.LOGIN_BADGE
 
 
 def test_wrong_location_rejected(env):

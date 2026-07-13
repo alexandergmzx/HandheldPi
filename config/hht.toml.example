@@ -27,6 +27,14 @@ rotation = 0            # 0 | 90 | 180 | 270 (CW, applied before blit)
 backend = "gpio"        # gpio | keyboard
 hold_start_s = 1.5      # hold Start this long to log out
 
+[audio]
+backend = "alsa"        # alsa | none (audio failure never blocks the workflow)
+# GamePi20 PWM audio appears as the bcm2835 "Headphones" card after setup_audio.sh.
+# Keep this explicit so a connected HDMI display cannot steal the sound output.
+device = "plughw:CARD=Headphones,DEV=0"
+sounds_dir = "assets/sounds"
+queue_size = 8           # bounded: old cues are dropped rather than delaying scans
+
 # GamePi20 button map, BCM numbering, active-low with internal pull-ups.
 # Verified against Waveshare's mk_arcade_joystick_rpi RetroPie config; re-check in
 # Phase 0 with `python -m hht.tools.buttontest` (board revisions may differ).

@@ -1,8 +1,8 @@
 """Picking workflow state machine.
 
-Pure logic: consumes Events, calls the injected WmsClient/OfflineQueue, exposes its
-state for rendering. No I/O of its own, no threads, injectable clock — fully unit- and
-script-testable (see tests/ and tests/scripts/).
+Consumes Events, calls injected ports (WMS, queue, sound cues), and exposes its state
+for rendering. No device I/O or threads of its own; the injectable clock and outputs
+keep it fully unit- and script-testable (see tests/ and tests/scripts/).
 
 STARTUP → LOGIN_BADGE ⇄ LOGIN_PIN → IDLE → GOTO_LOCATION → SCAN_ARTICLE
                                      ▲  ↘ NO_TASK   (wrong scan → error banner, stay)
@@ -19,6 +19,7 @@ from enum import Enum
 from typing import Callable
 
 from . import __version__
+from .audio import SoundCue
 from .config import AppConfig
 from .events import Button, ButtonEvent, Event, NetStatusEvent, QueueDepthEvent, \
     ScanEvent, TickEvent
@@ -53,11 +54,13 @@ def _parse_payload(payload: str) -> tuple[str, str]:
 class PickingStateMachine:
     def __init__(self, cfg: AppConfig, wms: WmsClient, queue: OfflineQueue,
                  kick_flusher: Callable[[], None] = lambda: None,
+                 play_sound: Callable[[SoundCue], None] = lambda cue: None,
                  clock: Callable[[], float] = time.monotonic):
         self.cfg = cfg
         self.wms = wms
         self.queue = queue
         self.kick_flusher = kick_flusher
+        self.play_sound = play_sound
         self.now = clock
 
         self.state = State.STARTUP
@@ -87,6 +90,15 @@ class PickingStateMachine:
         self._error = (msg, self.now() + self.cfg.workflow.error_banner_s)
         evt(log, "workflow_error", _level=logging.WARNING,
             state=self.state.value, message=msg)
+        self._sound(SoundCue.ERROR)
+
+    def _sound(self, cue: SoundCue) -> None:
+        """Emit a semantic cue without letting an output failure affect workflow."""
+        try:
+            self.play_sound(cue)
+        except Exception as e:  # output adapters must be fail-open
+            evt(log, "sound_emit_failed", _level=logging.WARNING,
+                cue=cue.value, error=str(e))
 
     def _goto(self, new: State, reason: str) -> None:
         evt(log, "state_transition", from_state=self.state.value,
@@ -133,6 +145,7 @@ class PickingStateMachine:
         self.online = True
         evt(log, "login_ok", method=how, operator_id=self.session.operator_id)
         self._goto(State.IDLE, f"login_{how}")
+        self._sound(SoundCue.BADGE_ACCEPTED)
 
     def _report_scan(self, scan_type: str, code: str) -> None:
         """Best-effort telemetry; never blocks the workflow (see API.md)."""
@@ -159,6 +172,7 @@ class PickingStateMachine:
             short_pick=conf.short_pick, key=conf.idempotency_key)
         self._confirm_until = self.now() + self.cfg.workflow.error_banner_s
         self._goto(State.CONFIRMED, "pick_confirmed")
+        self._sound(SoundCue.CONFIRMED)
 
     # -- event handling -------------------------------------------------------
 
@@ -166,6 +180,8 @@ class PickingStateMachine:
         if isinstance(event, NetStatusEvent):
             if event.online != self.online:
                 evt(log, "net_status", online=event.online)
+                if not event.online:
+                    self._sound(SoundCue.OFFLINE)
             self.online = event.online
             return
         if isinstance(event, QueueDepthEvent):
@@ -176,6 +192,7 @@ class PickingStateMachine:
                 self._error = None
             if self.state is State.STARTUP:
                 self._goto(State.LOGIN_BADGE, "startup_done")
+                self._sound(SoundCue.READY)
             elif self.state is State.CONFIRMED and self.now() >= self._confirm_until:
                 self.task = None
                 self._goto(State.IDLE, "confirm_banner_timeout")
@@ -254,6 +271,7 @@ class PickingStateMachine:
                 evt(log, "scan_accepted", scan_type="location", code=code)
                 self._report_scan("location", code)
                 self._goto(State.SCAN_ARTICLE, "location_ok")
+                self._sound(SoundCue.LOCATION_ACCEPTED)
             else:
                 evt(log, "scan_rejected", _level=logging.WARNING,
                     scan_type="location", code=code,
@@ -283,6 +301,7 @@ class PickingStateMachine:
             self._report_scan("article", code)
             self.qty = self.task.qty_requested
             self._goto(State.SET_QUANTITY, "article_ok")
+            self._sound(SoundCue.ARTICLE_ACCEPTED)
         else:
             evt(log, "scan_rejected", _level=logging.WARNING,
                 scan_type="article", code=code, expected=self.task.article.code)

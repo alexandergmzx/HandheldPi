@@ -31,6 +31,11 @@ backend), not mockups.*
    immediately when online, automatically later when not. The operator is never blocked
    by the network.
 
+Short synthesized cues distinguish ready, accepted badge/location/article, rejected
+scan, offline transition, and pick confirmation. On the GamePi20 they use the onboard
+speaker circuit via PWM audio on GPIO18; audio is asynchronous and fail-open, so a
+missing speaker or ALSA device never delays the workflow.
+
 ## Hardware
 
 | Part | Notes |
@@ -38,6 +43,7 @@ backend), not mockups.*
 | Waveshare GamePi20 | ST7789V 320x240 SPI display, 12 buttons, battery |
 | Raspberry Pi Zero 2 W | 512 MB RAM — dependency budget matters |
 | Camera Module 3 (IMX708) | autofocus, needed for 10–20 cm scan distance |
+| GamePi20 audio | onboard speaker/headphone amplifier, PWM input on GPIO18 |
 | OS | Raspberry Pi OS Lite (bookworm), 64-bit |
 
 Researched pin map, display driver decision (`panel-mipi-dbi`, since fbcp is dead on
@@ -54,9 +60,12 @@ src/hht/          the application
   ui/               screens (PIL) + framebuffer/console/PNG display backends
   inputs/           GPIO buttons / dev keyboard
   scanner/          picamera2+pyzbar / mock
+  audio/            queued ALSA cue player / silent dev backend
   tools/            buttontest (bring-up), logreport (shift log analysis)
 tests/            pytest suite + scripted functional tests (tests/scripts/*.txt)
-scripts/          install.sh (provisioning), setup_display.sh (ST7789V overlay)
+scripts/          install.sh (provisioning), setup_display.sh (ST7789V overlay),
+                  setup_audio.sh (PWM audio on GPIO18)
+assets/           generated original sound cues
 firmware/         panel init sequence source (compiled to /lib/firmware at install)
 systemd/          service unit template
 docs/             device configuration procedure, test specification, test report template
@@ -85,7 +94,7 @@ Full procedure with verification checks:
 
 ```bash
 git clone <repo-url> ~/HandheldPi && cd ~/HandheldPi
-sudo scripts/install.sh          # apt deps, venv, config, display+camera overlays, service
+sudo scripts/install.sh          # apt deps, config, display+camera+audio, service
 sudo reboot
 scripts/verify_unit.sh           # automated Phase 0 verification — expect all PASS
 # button sweep + one test pick per the doc, edit /etc/hht/hht.toml, then:
@@ -102,7 +111,7 @@ identity are covered in [docs/FLEET_PROVISIONING.md](docs/FLEET_PROVISIONING.md)
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest                # unit + functional-script suites (42 tests)
+.venv/bin/python -m pytest                # unit + functional-script suites (50 tests)
 .venv/bin/python -m hht -c config/dev.toml --script tests/scripts/offline_pick.txt
 ```
 

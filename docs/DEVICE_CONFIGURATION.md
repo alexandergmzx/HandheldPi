@@ -69,7 +69,9 @@ sudo reboot
 
 The script is idempotent: apt packages, `.venv` (system-site-packages), `/etc/hht/hht.toml`
 (from the example, only if absent), `/var/log/hht` + `/var/lib/hht`, the display overlay
-(§3.4), and the systemd unit (installed, **not** enabled).
+(§3.4), GamePi20 audio routing (§3.5.1), and the systemd unit (installed, **not**
+enabled). On an existing unit it preserves configured values and adds the new `[audio]`
+section only when that section is absent.
 
 **Check:** script ends with `Done.` and no red apt errors.
 
@@ -128,6 +130,52 @@ may differ) and re-run.
 
 **Check:** 12/12 buttons correct; final pin map recorded in §5.
 
+### 3.5.1 Audio routing and power-on noise baseline
+
+The GamePi20 does not use GPIO13 for sound. It takes PWM audio from **GPIO18
+(physical pin 12)**; GPIO12/GPIO13 remain D-pad Up/Right. `scripts/setup_audio.sh`
+(run by install.sh) writes `dtoverlay=audremap,pins_18_19`. The board consumes GPIO18;
+GPIO19 is unconnected. The onboard speaker path includes a 5 V NS8002 amplifier, so
+noise that starts at the physical power switch may happen before Linux or the HHT app
+can mute/control the PWM pin.
+
+First set the physical volume potentiometer to minimum. After reboot:
+
+```bash
+aplay -l
+aplay -L | grep -A2 Headphones
+aplay -q -D plughw:CARD=Headphones,DEV=0 assets/sounds/ready.wav
+pinctrl get 12 13 18
+```
+
+Raise the potentiometer only enough to hear the quiet ready cue. Then repeat the button
+test in §3.5; Up and Right must still work. Record this matrix before changing hardware:
+
+| Test | Record |
+|---|---|
+| Battery, service stopped, power switch ON | exact start time, click/buzz/hiss, duration |
+| Clean 5 V USB power, same conditions | same / different from battery |
+| Potentiometer minimum then normal | whether noise follows volume |
+| Speaker then headphones, starting at minimum | which output carries the noise |
+| HHT starts and plays `ready` | cue clean, distorted, late, or absent |
+
+Interpretation gate:
+
+- Noise beginning immediately at the switch is in the power/amplifier/input path; the
+  application cannot be its root cause.
+- Noise beginning only when `hht.service` starts points to ALSA device/routing or cue
+  playback configuration.
+- Sustained noise that changes with the potentiometer is consistent with an upstream
+  input/PWM/ground/power problem, but is not enough by itself to identify a bad ground.
+
+Do not join arbitrary grounds or change amplifier components from this symptom alone.
+If switch-time or sustained noise remains, power down and inspect ground continuity,
+then have a qualified person measure the 5 V rail and the NS8002 shutdown/input network
+against the [Waveshare schematic](https://www.waveshare.net/w/upload/d/de/GamePi20_Schematic.pdf).
+
+**Check:** ready cue is audible and clean at low volume; no sustained noise at the agreed
+working volume; GPIO12/GPIO13 buttons pass. Record any unavoidable switch click in §5.
+
 ### 3.6 Camera verification
 
 **Bring-up finding (HHT-001):** the firmware's `camera_auto_detect` failed to identify
@@ -160,6 +208,8 @@ Edit `/etc/hht/hht.toml`:
 | `device.site` | site code |
 | `wms.base_url` | real WMS URL, e.g. `http://192.168.1.50:8080` |
 | `wms.backend` | `mock` for now — switch to `http` when the server is up |
+| `audio.backend` | `alsa` on device; `none` for silent operation |
+| `audio.device` | `plughw:CARD=Headphones,DEV=0` for GamePi20 PWM audio |
 
 Smoke test on the hardware (mock WMS, real display/buttons/camera):
 
@@ -192,9 +242,11 @@ scripts/verify_unit.sh
 ```
 
 Runs every software-checkable item of this procedure (OS, display chain, camera,
-config validity, service, permissions) and prints PASS/FAIL per check. **All PASS**
+audio routing/assets, config validity, service, permissions) and prints PASS/FAIL per
+check. **All PASS**
 is the provisioning gate — paste the output into the unit's test report as evidence.
-Only the physical checks (§3.5 buttons, one pick against the QR sheet) remain manual.
+Only the physical checks (§3.5 buttons, §3.5.1 sound/noise, and one pick against the QR
+sheet) remain manual.
 
 ## 4. Handover
 
@@ -209,6 +261,8 @@ Only the physical checks (§3.5 buttons, one pick against the QR sheet) remain m
 | OS image + date | bookworm Lite 64-bit | |
 | Kernel (`uname -r`) | 6.6 / 6.12 | |
 | Panel fb device | /dev/fb1 (typ.) | |
+| ALSA PWM device | `plughw:CARD=Headphones,DEV=0` | |
+| Power-on audio noise | none / click / sustained; battery vs USB | |
 | SPI clock | 48–80 MHz | |
 | MADCTL value | 0x70 | |
 | Button map deltas | none | |
@@ -223,6 +277,8 @@ Only the physical checks (§3.5 buttons, one pick against the QR sheet) remain m
 - Display broken after tuning: remove the block between the
   `# --- HHT GamePi20 display` markers in `/boot/firmware/config.txt`, reboot (HDMI/SSH
   still work — the overlay never touches them).
+- Audio routing broken: set `[audio] backend = "none"` to keep the workflow silent;
+  re-run `sudo scripts/setup_audio.sh` and reboot when ready to diagnose it.
 - Config wrecked: `sudo cp ~/HandheldPi/config/hht.toml.example /etc/hht/hht.toml`.
 - Offline queue stuck (poison row shows repeatedly in `queue_flush_paused` logs):
   inspect with `sqlite3 /var/lib/hht/queue.db 'SELECT id,attempts,last_error FROM
@@ -241,3 +297,4 @@ clone hygiene (SSH host keys, machine-id), zero-touch per-unit identity via
 |---|---|---|---|
 | 0.1 | 2026-07-11 | | initial draft (pre-hardware) |
 | 0.2 | 2026-07-12 | | HHT-001 bring-up findings folded in (display driver chain, SPI mode 3, explicit camera overlay); added §3.9 automated verification and §7 fleet pointer |
+| 0.3 | 2026-07-13 | | GamePi20 GPIO18 PWM audio provisioning, semantic workflow cues, and power-on noise baseline (§3.5.1) |

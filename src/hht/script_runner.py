@@ -15,6 +15,7 @@ Grammar (one command per line, '#' comments):
     expect_error <substr>   assert the visible error banner contains <substr>
     expect_no_error         assert no error banner is shown
     expect_queue <n>        assert n confirmations are pending
+    expect_sound <cue>      assert the latest semantic sound cue
 
 Each command renders a frame; with `[display] backend = "image"` every step is
 saved as a numbered PNG — ready-made evidence for the test report.
@@ -27,6 +28,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from .audio import SoundCue
 from .config import AppConfig
 from .events import Button, ButtonEvent, NetStatusEvent, QueueDepthEvent, ScanEvent, \
     TickEvent
@@ -58,7 +60,8 @@ def run_script(cfg: AppConfig, script_path: str | Path) -> int:
     clock = FakeClock()
     wms = make_wms_client(cfg)
     queue = OfflineQueue(cfg.queue.db_path)
-    sm = PickingStateMachine(cfg, wms, queue, clock=clock)
+    sounds: list[SoundCue] = []
+    sm = PickingStateMachine(cfg, wms, queue, play_sound=sounds.append, clock=clock)
     display = make_display(cfg)
     evt(log, "script_started", script=str(script_path))
 
@@ -68,7 +71,7 @@ def run_script(cfg: AppConfig, script_path: str | Path) -> int:
             if not line:
                 continue
             try:
-                _execute(line, sm, wms, queue, clock)
+                _execute(line, sm, wms, queue, clock, sounds)
             except ScriptFailure as e:
                 print(f"FAIL {script_path}:{lineno}: {line!r} — {e}")
                 evt(log, "script_failed", _level=logging.ERROR,
@@ -85,7 +88,8 @@ def run_script(cfg: AppConfig, script_path: str | Path) -> int:
 
 
 def _execute(line: str, sm: PickingStateMachine, wms, queue: OfflineQueue,
-             clock: FakeClock) -> None:
+             clock: FakeClock, sounds: list[SoundCue] | None = None) -> None:
+    sounds = sounds if sounds is not None else []
     cmd, _, arg = line.partition(" ")
     arg = arg.strip()
 
@@ -129,6 +133,17 @@ def _execute(line: str, sm: PickingStateMachine, wms, queue: OfflineQueue,
         pending = queue.pending_count()
         if pending != int(arg):
             raise ScriptFailure(f"queue has {pending} pending, expected {arg}")
+    elif cmd == "expect_sound":
+        try:
+            expected = SoundCue(arg)
+        except ValueError:
+            raise ScriptFailure(f"unknown sound cue '{arg}'") from None
+        if not sounds:
+            raise ScriptFailure(f"no sound emitted, expected {expected.value}")
+        if sounds[-1] is not expected:
+            raise ScriptFailure(
+                f"latest sound is {sounds[-1].value}, expected {expected.value}"
+            )
     elif cmd == "quit":
         pass
     else:

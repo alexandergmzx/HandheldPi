@@ -52,6 +52,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run_interactive(cfg) -> int:
+    from .audio import make_audio_player
     from .inputs import make_input
     from .scanner import make_scanner
 
@@ -59,14 +60,20 @@ def _run_interactive(cfg) -> int:
     wms = make_wms_client(cfg)
     offline_queue = OfflineQueue(cfg.queue.db_path)
     flusher = Flusher(cfg, wms, offline_queue, events.put)
-    sm = PickingStateMachine(cfg, wms, offline_queue, kick_flusher=flusher.kick)
+    audio = make_audio_player(cfg)
+    sm = PickingStateMachine(
+        cfg, wms, offline_queue, kick_flusher=flusher.kick,
+        play_sound=audio.play,
+    )
     display = make_display(cfg)
     input_source = make_input(cfg)
     scanner = make_scanner(cfg)
 
     evt(log, "app_started", version=__version__, device_id=cfg.device.id,
-        wms_backend=cfg.wms.backend, display=cfg.display.backend)
+        wms_backend=cfg.wms.backend, display=cfg.display.backend,
+        audio=cfg.audio.backend)
 
+    audio.start()
     input_source.start(events.put)
     scanner.start(events.put)
     flusher.start()
@@ -97,6 +104,7 @@ def _run_interactive(cfg) -> int:
         scanner.stop()
         input_source.stop()
         flusher.stop()
+        audio.stop()
         display.close()
         offline_queue.close()
     return 0
