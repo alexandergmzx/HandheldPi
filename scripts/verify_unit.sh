@@ -7,7 +7,10 @@
 #   scripts/verify_unit.sh [-c /etc/hht/hht.toml]
 #
 # Exit code 0 = every mandatory check passed (warnings allowed).
-set -uo pipefail
+# Deliberately NO pipefail: `grep -q` exits on first match and the resulting
+# SIGPIPE in a still-writing producer (rpicam-hello, dmesg) would turn a
+# passing pipeline into a failure (bit us on HHT-001).
+set -u
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CFG="/etc/hht/hht.toml"
@@ -54,7 +57,9 @@ check "config.txt: HHT camera block present" \
     grep -q "HHT camera" "$CONFIG_TXT"
 check "config.txt: camera_auto_detect effectively off" \
     sh -c '[ "$(grep "^camera_auto_detect=" '"$CONFIG_TXT"' | tail -1)" = "camera_auto_detect=0" ]'
-if rpicam-hello --list-cameras 2>/dev/null | grep -q imx708; then
+if ls /sys/bus/i2c/drivers/imx708 2>/dev/null | grep -q -- "-001a"; then
+    ok "camera imx708 bound (sysfs i2c driver)"
+elif rpicam-hello --list-cameras 2>/dev/null | grep -q imx708; then
     ok "camera imx708 detected by libcamera"
 elif dmesg 2>/dev/null | grep -q "camera module ID"; then
     ok "camera imx708 probed (dmesg)"
