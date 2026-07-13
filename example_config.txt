@@ -79,8 +79,12 @@ dtoverlay=imx708,cam0
 # here because DispmanX was removed with the move to the KMS stack (see PLAN.md).
 #
 # The init sequence lives in firmware/st7789v_gamepi20.txt and is compiled to
-# /lib/firmware/st7789v.bin by scripts/setup_display.sh; the driver loads that
-# blob because the first compatible string below is "st7789v".
+# /lib/firmware/gamepi20.bin by scripts/setup_display.sh; the driver loads that
+# blob because the first compatible string below is "gamepi20". That name is
+# deliberately NOT "st7789v": the bare controller name collides with the staging
+# fbtft module's spi:st7789v alias (wrong module loads, nothing binds). The
+# panel_mipi_dbi driver itself is loaded via /etc/modules-load.d/hht-display.conf,
+# also written by setup_display.sh.
 #
 # Pins (BCM):  DC=25  RESET=27  BACKLIGHT=24  on SPI0 CE0 (MOSI=10, SCLK=11).
 # The panel is write-only (no MISO), hence dtparam=write-only.
@@ -90,7 +94,7 @@ dtoverlay=imx708,cam0
 # or lower speed= to 32000000 — full table in docs/DEVICE_CONFIGURATION.md §3.4.
 dtparam=spi=on
 dtoverlay=mipi-dbi-spi,spi0-0,speed=48000000
-dtparam=compatible=st7789v\0panel-mipi-dbi-spi
+dtparam=compatible=gamepi20\0panel-mipi-dbi-spi
 dtparam=width=320,height=240
 dtparam=reset-gpio=27,dc-gpio=25
 dtparam=backlight-gpio=24

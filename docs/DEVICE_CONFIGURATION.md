@@ -95,6 +95,7 @@ Tuning table — edit `firmware/st7789v_gamepi20.txt`, re-run
 | Symptom | Fix |
 |---|---|
 | Overlay missing | confirm `/boot/firmware/overlays/mipi-dbi-spi.dtbo` exists; if not, `sudo apt full-upgrade` (older bookworm images predate it) |
+| No fb1; `fbtft`/`fb_st7789v` in dmesg; `/sys/bus/spi/devices/spi0.0/driver` missing | modalias collision: the panel's first compatible must be a neutral name (`gamepi20`), never a controller name, and `panel_mipi_dbi` must be listed in `/etc/modules-load.d/hht-display.conf` — both written by `setup_display.sh`; re-run it (found during HHT-001 bring-up) |
 | Nothing at all | check `dmesg \| grep -i mipi` for firmware load errors |
 | Garbage pixels | SPI mode: add `dtparam=cpha,cpol`; or lower `speed=` to 32 MHz |
 | Colors inverted | remove/keep `command 0x21` (INVON) |

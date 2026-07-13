@@ -44,6 +44,14 @@ on `mipi-dbi-spi`, notro/panel-mipi-dbi wiki. Init sequence in `firmware/` is de
 Waveshare's ST7789V demo code and **must be validated on hardware in Phase 0** (VCOM,
 gamma, and MADCTL orientation may need adjustment).
 
+**Bring-up finding (2026-07-12, HHT-001):** the panel's first compatible string must be a
+*neutral* name (`gamepi20`), not `st7789v` — the bare controller name generates the SPI
+modalias `spi:st7789v`, which the legacy staging `fb_st7789v`/`fbtft` modules claim, so
+the wrong module loads and nothing binds to `spi0.0`. Since SPI modalias autoload only
+considers that first name, `panel_mipi_dbi` is also force-loaded at boot via
+`/etc/modules-load.d/hht-display.conf`. Both handled by `scripts/setup_display.sh`. With
+this fix the panel binds as `/dev/fb1` (`panel-mipi-dbid`) next to the HDMI `fb0`.
+
 ### Buttons (GamePi20)
 
 Decoded from Waveshare's own RetroPie config

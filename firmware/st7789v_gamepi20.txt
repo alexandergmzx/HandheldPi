@@ -1,6 +1,8 @@
 # ST7789V init sequence for the Waveshare GamePi20 2.0" 320x240 IPS panel.
 # Source for panel-mipi-dbi firmware; compiled by scripts/setup_display.sh with:
-#   mipi-dbi-cmd /lib/firmware/st7789v.bin firmware/st7789v_gamepi20.txt
+#   mipi-dbi-cmd /lib/firmware/gamepi20.bin firmware/st7789v_gamepi20.txt
+# (blob is named after the panel's first compatible string "gamepi20" — see the
+# modalias-collision note in setup_display.sh for why it is not "st7789v")
 #
 # Derived from Waveshare's ST7789V demo init. PHASE 0: validate on hardware —
 # VCOMS (0xbb), gamma (0xe0/0xe1) and MADCTL (0x36) may need tuning.

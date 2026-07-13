@@ -23,9 +23,10 @@ if [[ ! -f "$MIPI_CMD" ]]; then
     chmod +x "$MIPI_CMD"
 fi
 
-# 2. Compile the init sequence to the firmware blob the kernel will request
-echo "    compiling firmware/st7789v_gamepi20.txt -> /lib/firmware/st7789v.bin"
-python3 "$MIPI_CMD" /lib/firmware/st7789v.bin "$REPO_DIR/firmware/st7789v_gamepi20.txt"
+# 2. Compile the init sequence to the firmware blob the kernel will request.
+# The blob name must match the FIRST compatible string below ("gamepi20").
+echo "    compiling firmware/st7789v_gamepi20.txt -> /lib/firmware/gamepi20.bin"
+python3 "$MIPI_CMD" /lib/firmware/gamepi20.bin "$REPO_DIR/firmware/st7789v_gamepi20.txt"
 
 # 3. Managed config.txt block (replace previous block if present)
 tmp="$(mktemp)"
@@ -34,7 +35,7 @@ cat >> "$tmp" <<EOF
 ${BEGIN_MARK}
 dtparam=spi=on
 dtoverlay=mipi-dbi-spi,spi0-0,speed=48000000
-dtparam=compatible=st7789v\\0panel-mipi-dbi-spi
+dtparam=compatible=gamepi20\\0panel-mipi-dbi-spi
 dtparam=width=320,height=240
 dtparam=reset-gpio=27,dc-gpio=25
 dtparam=backlight-gpio=24
@@ -43,6 +44,15 @@ ${END_MARK}
 EOF
 cp "$tmp" "$CONFIG_TXT"
 rm -f "$tmp"
+
+# NOTE the first compatible ("gamepi20") is deliberately NOT "st7789v": a bare
+# controller name generates the SPI modalias spi:st7789v, which the legacy staging
+# fbtft module (fb_st7789v) claims — the wrong module loads and nothing binds
+# (found during bring-up, 2026-07-12). The name is only used to pick the firmware
+# file. And since SPI modalias autoload only considers that first name, the real
+# driver is force-loaded at boot:
+echo panel_mipi_dbi > /etc/modules-load.d/hht-display.conf
+rm -f /lib/firmware/st7789v.bin   # stale blob from pre-rename installs
 
 echo "    display overlay written to $CONFIG_TXT (reboot required)"
 echo "    troubleshooting: garbage pixels -> add 'dtparam=cpha,cpol' (SPI mode 3);"
