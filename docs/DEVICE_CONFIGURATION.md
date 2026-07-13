@@ -106,8 +106,12 @@ Tuning table — edit `firmware/st7789v_gamepi20.txt`, re-run
 | Upside down / mirrored | MADCTL `0x36`: `0xa8` baseline; `0x68` flips, `0xe8`/`0x28` mirror |
 | Washed out | tune VCOMS `0xbb` (0x1a–0x35) |
 
-Optionally add `fbcon=map:1` to `/boot/firmware/cmdline.txt` to get the Linux console
-on the LCD (record the panel's fb number first).
+`setup_display.sh` also maps the Linux boot console to the LCD (`fbcon=map:1`, cursor
+blink off, `quiet` removed): from ~7 s into boot the panel shows scrolling boot text,
+then the hht app paints over it. The first seconds are always dark — the GPU bootloader
+only drives HDMI, and the SPI panel driver loads from the rootfs. Note an attached HDMI
+monitor loses its *text console* (its desktop/framebuffer is unaffected); remove the
+`fbcon=map:1` parameter from `/boot/firmware/cmdline.txt` to revert.
 
 **Check:** panel shows content, correct orientation (landscape, D-pad left), record the
 final SPI `speed=` value in §5.
