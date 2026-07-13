@@ -155,19 +155,25 @@ Global: Select = status screen, Start(hold) = logout, error banner with timeout.
 Exit criteria: console visible on LCD, all 12 buttons verified, camera captures a sharp
 QR at 15 cm, all documented in docs/DEVICE_CONFIGURATION.md with actual values.
 
-- [ ] Flash Raspberry Pi OS **bookworm Lite 64-bit** (chosen over trixie: more reliable
+- [x] Flash Raspberry Pi OS **bookworm Lite 64-bit** (chosen over trixie: more reliable
       first-boot/userconf provisioning in Imager); preconfigure SSH + WiFi in Imager.
-- [ ] First boot on USB power (not battery), SSH in, `apt update && full-upgrade`.
-- [ ] Run `scripts/install.sh` (installs apt deps, venv, app, display overlay, service
+      *(done 2026-07-12, HHT-001 as host `raspi`)*
+- [x] First boot on USB power (not battery), SSH in, `apt update && full-upgrade`.
+- [x] Run `scripts/install.sh` (installs apt deps, venv, app, display overlay, service
       disabled by default).
-- [ ] Display: reboot, verify `/dev/fb0` is the ST7789V (`cat /sys/class/graphics/fb0/name`),
-      console appears on LCD. Tune `firmware/st7789v_gamepi20.txt` if colours/orientation
-      are wrong (MADCTL 0x70 ↔ 0xA0, INVON), re-run `scripts/setup_display.sh`, reboot.
+- [x] Display: reboot, verify the panel framebuffer (`cat /sys/class/graphics/fb*/name`
+      → `panel-mipi-dbid`, enumerates as **fb1** next to the HDMI fb0); paint it with
+      `--script tests/scripts/happy_path.txt` on a framebuffer config.
+      *(done 2026-07-12 after three fixes — see "Bring-up finding" above; MADCTL 0xA8
+      confirmed visually: READY screen, correct orientation and colors)*
 - [ ] Push SPI clock: 48 → 64 → 80 MHz until artifacts, then back off one step. Record.
-- [ ] Buttons: run `python -m hht.tools.buttontest` — press each key, verify GPIO map
+- [x] Buttons: run `python -m hht.tools.buttontest` — press each key, verify GPIO map
       table above; correct config if Waveshare revision differs.
+      *(done 2026-07-12: 12/12 correct on first try, no bounce, map as researched)*
 - [ ] Camera: seat FFC (contacts down on Zero), `rpicam-hello --list-cameras` shows imx708;
       `rpicam-still -o test.jpg` sharp at 15 cm with autofocus.
+      *(in progress: firmware autodetect sees nothing on CSI I²C — electrical-level
+      debugging with a forced `dtoverlay=imx708`)*
 - [ ] Battery sanity: run display+camera+WiFi loop 30 min on battery, watch for brownout
       (`vcgencmd get_throttled`). Record runtime estimate.
 - [ ] Fill in the "as-built" column in docs/DEVICE_CONFIGURATION.md.
