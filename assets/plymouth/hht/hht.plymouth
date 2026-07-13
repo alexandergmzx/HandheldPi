@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=HHT
+Description=HHT warehouse terminal splash (320x240 ST7789V panel)
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/hht
+ScriptFile=/usr/share/plymouth/themes/hht/hht.script

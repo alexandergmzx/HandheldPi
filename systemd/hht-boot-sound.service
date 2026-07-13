@@ -1,0 +1,27 @@
+# HandheldPi boot chime — installed by scripts/install.sh, which replaces
+# @REPO_DIR@ with the actual clone location. Plays a short cue over the
+# plymouth splash so the operator gets an audible "powering up" alongside the
+# logo (the audible counterpart to the visual splash; see setup_splash.sh).
+[Unit]
+Description=HHT boot chime (plays over the plymouth splash)
+# Wait for the bcm2835 ALSA card, then chime while the splash is still up:
+# ordered before plymouth tears down and before the app grabs the panel.
+# plymouth-quit.service is absent in --diag mode — ordering a unit that does
+# not exist is a harmless no-op.
+After=sound.target
+Wants=sound.target
+Before=plymouth-quit.service hht.service
+
+[Service]
+Type=oneshot
+# Bound the start so a busy/missing audio device can never stall the boot.
+TimeoutStartSec=10
+# Leading '-': a failed play (no device yet, card busy) is ignored, never
+# failing the boot transaction. Same device the app uses (config hht.toml
+# [audio] device) so a connected HDMI monitor can't steal the output. Swap
+# ready.wav for a longer clip only if you accept the splash lingering that
+# much longer — this oneshot blocks plymouth-quit until the clip ends.
+ExecStart=-/usr/bin/aplay -q -D plughw:CARD=Headphones,DEV=0 @REPO_DIR@/assets/sounds/ready.wav
+
+[Install]
+WantedBy=multi-user.target

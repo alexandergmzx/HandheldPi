@@ -109,3 +109,11 @@ dtparam=reset-gpio=27,dc-gpio=25
 dtparam=backlight-gpio=24
 dtparam=write-only
 # --- HHT GamePi20 display end ---
+
+# --- HHT boot splash (managed by setup_splash.sh) ---
+# Kill the firmware rainbow splash (HDMI only — the SPI panel is dark until its
+# driver binds in the initramfs). Console/splash policy itself lives on the
+# kernel cmdline, normalized by setup_splash.sh (production splash vs --diag
+# verbose console) — see docs/DEVICE_CONFIGURATION.md §3.4.1.
+disable_splash=1
+# --- HHT boot splash end ---

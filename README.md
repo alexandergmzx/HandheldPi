@@ -64,8 +64,9 @@ src/hht/          the application
   tools/            buttontest (bring-up), logreport (shift log analysis)
 tests/            pytest suite + scripted functional tests (tests/scripts/*.txt)
 scripts/          install.sh (provisioning), setup_display.sh (ST7789V overlay),
-                  setup_audio.sh (PWM audio on GPIO18)
-assets/           generated original sound cues
+                  setup_audio.sh (PWM audio on GPIO18),
+                  setup_splash.sh (boot splash / --diag console)
+assets/           plymouth boot-splash theme + generated original sound cues
 firmware/         panel init sequence source (compiled to /lib/firmware at install)
 systemd/          service unit template
 docs/             device configuration procedure, test specification, test report template
@@ -94,7 +95,7 @@ Full procedure with verification checks:
 
 ```bash
 git clone <repo-url> ~/HandheldPi && cd ~/HandheldPi
-sudo scripts/install.sh          # apt deps, config, display+camera+audio, service
+sudo scripts/install.sh          # apt deps, config, display+camera+audio+splash, service
 sudo reboot
 scripts/verify_unit.sh           # automated Phase 0 verification — expect all PASS
 # button sweep + one test pick per the doc, edit /etc/hht/hht.toml, then:
@@ -111,7 +112,7 @@ identity are covered in [docs/FLEET_PROVISIONING.md](docs/FLEET_PROVISIONING.md)
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest                # unit + functional-script suites (50 tests)
+.venv/bin/python -m pytest                # unit + functional-script suites (54 tests)
 .venv/bin/python -m hht -c config/dev.toml --script tests/scripts/offline_pick.txt
 ```
 

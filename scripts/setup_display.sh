@@ -8,7 +8,6 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_TXT="/boot/firmware/config.txt"
-CMDLINE_TXT="/boot/firmware/cmdline.txt"
 MIPI_CMD="$REPO_DIR/scripts/mipi-dbi-cmd"
 BEGIN_MARK="# --- HHT GamePi20 display (managed by setup_display.sh) ---"
 END_MARK="# --- HHT GamePi20 display end ---"
@@ -55,16 +54,8 @@ rm -f "$tmp"
 echo panel_mipi_dbi > /etc/modules-load.d/hht-display.conf
 rm -f /lib/firmware/st7789v.bin   # stale blob from pre-rename installs
 
-# 4. Boot console on the LCD: map fbcon to the panel (fb1), no blinking cursor,
-# no 'quiet' so the boot is actually visible. The first ~7 s stay black — the
-# GPU bootloader only drives HDMI, and the panel driver loads from the rootfs.
-# Side effect: an attached HDMI monitor loses its text console (all consoles
-# move to the panel); revert by removing these params from cmdline.txt.
-if ! grep -q "fbcon=map:" "$CMDLINE_TXT"; then
-    sed -i '1 s/$/ fbcon=map:1 vt.global_cursor_default=0/' "$CMDLINE_TXT"
-    sed -i '1 s/ quiet//' "$CMDLINE_TXT"
-    echo "    boot console mapped to the LCD (fbcon=map:1) in $CMDLINE_TXT"
-fi
+# Console/splash policy on cmdline.txt (splash vs verbose console-on-LCD) is
+# owned by setup_splash.sh — this script only installs the panel driver.
 
 echo "    display overlay written to $CONFIG_TXT (reboot required)"
 echo "    NOTE: SPI mode 3 (cpha,cpol) is required by the Waveshare ST7789V module"

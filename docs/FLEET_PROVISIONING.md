@@ -17,6 +17,7 @@ this document layers the scale-up strategy on top.
 | camera autodetect failure, `,cam0` confusion | `scripts/setup_camera.sh`, applied by `install.sh` |
 | manual eyeball verification of every subsystem | `scripts/verify_unit.sh` — the Phase 0 checklist as one command |
 | editing per-unit identity by hand | `hht-firstboot.service` — device.id/hostname derived from the SoC serial |
+| boot console text on the handheld's screen | `scripts/setup_splash.sh` — plymouth splash on the LCD, silent boot/shutdown; `--diag` restores the verbose console for bench work |
 
 ## Tier 1 — scripted install (any unit count, works today)
 
@@ -49,7 +50,9 @@ pre-installed and self-identify.
 
 ### 2a. Prepare the golden master
 
-On a fully provisioned, verified unit:
+On a fully provisioned, verified unit — **in production boot mode** (`verify_unit.sh`
+says `boot mode: production`, not diag; clones inherit the boot mode, and a diag
+master means console text on every clone):
 
 ```
 sudo systemctl enable hht-firstboot.service      # identity-on-first-boot, see below
@@ -57,6 +60,10 @@ sudo sed -i 's/^id = ".*"/id = "HHT-AUTO"/' /etc/hht/hht.toml
 sudo rm -f /var/log/hht/* /var/lib/hht/queue.db* # no unit-specific residue
 history -c && sudo poweroff
 ```
+
+The splash needs no clone-time attention: theme and panel modules live inside the
+initramfs, which is part of the image, and the hook in `/etc/initramfs-tools/`
+re-adds them automatically whenever a kernel update regenerates the initramfs.
 
 `HHT-AUTO` is the placeholder that arms `hht-firstboot.sh` — on the next boot of any
 clone it will:

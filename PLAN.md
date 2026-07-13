@@ -256,6 +256,10 @@ hht` green after reboot; test report filled in.
 - [x] Fleet provisioning: `verify_unit.sh` (Phase 0 checklist as one command),
       `setup_camera.sh`, golden-image flow with `hht-firstboot` identity-from-serial
       and clone hygiene — docs/FLEET_PROVISIONING.md *(2026-07-12)*
+- [ ] Boot/shutdown splash: plymouth `script` theme on the LCD, silent cmdline,
+      `setup_splash.sh --diag` console switch, panel stack (vc4-first) baked into
+      the initramfs, boot chime (`hht-boot-sound.service` plays ready.wav over the
+      splash) — verify on HHT-001, record splash timing in DEVICE_CONFIGURATION §5.
 - [ ] `install.sh` idempotent end-to-end on a fresh image (this *is* the provisioning test).
 - [ ] Log rotation; `hht.tools.logreport` — summarize a shift's JSONL (picks/hour, errors,
       offline windows).

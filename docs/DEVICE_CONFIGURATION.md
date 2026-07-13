@@ -69,7 +69,8 @@ sudo reboot
 
 The script is idempotent: apt packages, `.venv` (system-site-packages), `/etc/hht/hht.toml`
 (from the example, only if absent), `/var/log/hht` + `/var/lib/hht`, the display overlay
-(§3.4), GamePi20 audio routing (§3.5.1), and the systemd unit (installed, **not**
+(§3.4), the boot splash (§3.4.1 — pass `--diag` to keep the verbose boot console
+instead), GamePi20 audio routing (§3.5.1), and the systemd unit (installed, **not**
 enabled). On an existing unit it preserves configured values and adds the new `[audio]`
 section only when that section is absent.
 
@@ -108,15 +109,64 @@ Tuning table — edit `firmware/st7789v_gamepi20.txt`, re-run
 | Upside down / mirrored | MADCTL `0x36`: `0xa8` baseline; `0x68` flips, `0xe8`/`0x28` mirror |
 | Washed out | tune VCOMS `0xbb` (0x1a–0x35) |
 
-`setup_display.sh` also maps the Linux boot console to the LCD (`fbcon=map:1`, cursor
-blink off, `quiet` removed): from ~7 s into boot the panel shows scrolling boot text,
-then the hht app paints over it. The first seconds are always dark — the GPU bootloader
-only drives HDMI, and the SPI panel driver loads from the rootfs. Note an attached HDMI
-monitor loses its *text console* (its desktop/framebuffer is unaffected); remove the
-`fbcon=map:1` parameter from `/boot/firmware/cmdline.txt` to revert.
-
 **Check:** panel shows content, correct orientation (landscape, D-pad left), record the
 final SPI `speed=` value in §5.
+
+### 3.4.1 Boot splash & diag console
+
+What the LCD shows during boot/shutdown is owned by `scripts/setup_splash.sh`
+(run by install.sh; re-runnable standalone to switch modes — it only edits
+`cmdline.txt`/`config.txt`, so switching takes seconds):
+
+| Mode | Command (then reboot) | LCD during boot/shutdown | cmdline parameters |
+|---|---|---|---|
+| **production** (default) | `sudo scripts/setup_splash.sh` | HHT splash (plymouth), no text; kernel console stays on HDMI | `quiet splash plymouth.ignore-serial-consoles loglevel=3 logo.nologo systemd.show_status=false vt.global_cursor_default=0` |
+| **diag** | `sudo scripts/setup_splash.sh --diag` | verbose scrolling boot console (the pre-splash bring-up behavior) | `fbcon=map:1 vt.global_cursor_default=0` |
+
+How production works: plymouth (not shipped on OS Lite; installed by the script
+with the `script`-plugin theme from `assets/plymouth/hht/`, logo regenerable via
+`scripts/make_splash_logo.py`) renders to the panel's DRM device from the
+initramfs. An initramfs hook (`/etc/initramfs-tools/hooks/hht-display`) bakes
+`vc4 → spi_bcm2835 → gpio_backlight → panel_mipi_dbi` plus `gamepi20.bin` into
+the initramfs so plymouth can drive the panel early (verified on HHT-001: the
+splash appears ~4 s in). The app and the splash both find the panel **by
+name**, so its framebuffer index does not matter: on a headless unit the panel
+is `fb0` (vc4 makes no fbdev without a connected display), and with a monitor
+attached vc4 takes `fb0` and the panel is `fb1`. Production sets no
+`fbcon=map:`, so the boot console follows the kernel default and stays silent
+(`quiet`, `loglevel=3`, `systemd.show_status=false`); diag's `fbcon=map:1`
+forces the console onto the panel. Because the panel is `fb0` headless, the
+console *tty1* lands on it, so production also **masks `getty@tty1`** — without
+it agetty paints `"<host> login:"` and a blinking cursor over the app (SSH is
+unaffected; `--diag` unmasks it). `ShowDelay=0` is set in
+`/etc/plymouth/plymouthd.conf`
+(the Debian default of 5 s would hide the splash for most of the boot). The
+first ~5 s stay dark in every mode — the GPU bootloader only drives HDMI.
+On shutdown/reboot the splash returns via plymouth's poweroff/reboot units;
+`hht.service` is ordered `After=plymouth-quit*` so plymouth releases the DRM
+device before the app paints.
+
+**Boot chime.** `hht-boot-sound.service` (a oneshot enabled by install.sh) plays
+`assets/sounds/ready.wav` on the GamePi20 speaker while the splash is still up —
+the audible counterpart to the logo, ordered `After=sound.target` and
+`Before=plymouth-quit.service`. It reuses the same ALSA device as the app
+(`plughw:CARD=Headphones,DEV=0`) and cannot stall the boot (`ExecStart=-…`,
+`TimeoutStartSec`). Swap the wav in the unit for a longer clip only if you
+accept the splash lingering until it finishes; disable the chime with
+`sudo systemctl disable hht-boot-sound`.
+
+Splash troubleshooting (production mode):
+
+| Symptom | Fix |
+|---|---|
+| No splash on the panel, only on HDMI | `lsinitramfs $(ls -t /boot/firmware/initramfs* \| head -1) \| grep -E 'panel|gamepi20|vc4|backlight'` — if missing, re-run `sudo scripts/setup_splash.sh` (rebuilds the initramfs) |
+| No splash anywhere | check theme is set: `plymouth-set-default-theme` prints `hht`; add `plymouth.debug` to cmdline, reboot, read `/var/log/plymouth-debug.log` and `journalctl -b \| grep plymouth` |
+| Test the theme without rebooting | `sudo systemctl stop hht; sudo plymouthd; sudo plymouth show-splash; sleep 5; sudo plymouth quit; sudo systemctl start hht` |
+| Boot text bleeds through | confirm `quiet` and `systemd.show_status=false` survived in `/boot/firmware/cmdline.txt` (a failed edit leaves the old line — the file is normalized on every setup_splash.sh run) |
+| Everything broken, need the console | `sudo scripts/setup_splash.sh --diag && sudo reboot`, or plug an HDMI monitor (production keeps the console there) |
+
+**Check:** reboot shows the HHT splash on the LCD with no scrolling text before
+the app starts; `verify_unit.sh` (§3.9) reports `boot mode: production`.
 
 ### 3.5 Button verification
 
@@ -260,7 +310,9 @@ sheet) remain manual.
 |---|---|---|
 | OS image + date | bookworm Lite 64-bit | |
 | Kernel (`uname -r`) | 6.6 / 6.12 | |
-| Panel fb device | /dev/fb1 (typ.) | |
+| Panel fb device | fb0 headless / fb1 with HDMI | |
+| Boot mode (§3.4.1) | production (splash) | |
+| Splash first visible at | ~4–5 s after power | |
 | ALSA PWM device | `plughw:CARD=Headphones,DEV=0` | |
 | Power-on audio noise | none / click / sustained; battery vs USB | |
 | SPI clock | 48–80 MHz | |
@@ -277,6 +329,8 @@ sheet) remain manual.
 - Display broken after tuning: remove the block between the
   `# --- HHT GamePi20 display` markers in `/boot/firmware/config.txt`, reboot (HDMI/SSH
   still work — the overlay never touches them).
+- Splash misbehaving or boot text needed: `sudo scripts/setup_splash.sh --diag`,
+  reboot — verbose console on the LCD, plymouth left installed but dormant.
 - Audio routing broken: set `[audio] backend = "none"` to keep the workflow silent;
   re-run `sudo scripts/setup_audio.sh` and reboot when ready to diagnose it.
 - Config wrecked: `sudo cp ~/HandheldPi/config/hht.toml.example /etc/hht/hht.toml`.
@@ -297,4 +351,5 @@ clone hygiene (SSH host keys, machine-id), zero-touch per-unit identity via
 |---|---|---|---|
 | 0.1 | 2026-07-11 | | initial draft (pre-hardware) |
 | 0.2 | 2026-07-12 | | HHT-001 bring-up findings folded in (display driver chain, SPI mode 3, explicit camera overlay); added §3.9 automated verification and §7 fleet pointer |
-| 0.3 | 2026-07-13 | | GamePi20 GPIO18 PWM audio provisioning, semantic workflow cues, and power-on noise baseline (§3.5.1) |
+| 0.3 | 2026-07-13 | | boot splash: plymouth theme on the LCD, silent boot/shutdown, `--diag` console mode (§3.4.1); console-on-LCD moved from setup_display.sh to setup_splash.sh |
+| 0.4 | 2026-07-13 | | GamePi20 GPIO18 PWM audio provisioning, semantic workflow cues, and power-on noise baseline (§3.5.1) |

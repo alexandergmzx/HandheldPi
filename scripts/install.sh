@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # HandheldPi provisioning — idempotent, run as root on the device:
-#   sudo scripts/install.sh [--enable-service]
+#   sudo scripts/install.sh [--enable-service] [--diag]
+# --diag: verbose boot console on the LCD instead of the boot splash
+# (bench debugging; see setup_splash.sh).
 # Full procedure with verification steps: docs/DEVICE_CONFIGURATION.md
 # Provisioning many units: docs/FLEET_PROVISIONING.md
 set -euo pipefail
@@ -8,24 +10,31 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_USER="${SUDO_USER:-pi}"
 ENABLE_SERVICE=0
-[[ "${1:-}" == "--enable-service" ]] && ENABLE_SERVICE=1
+DIAG=0
+for arg in "$@"; do
+    case "$arg" in
+        --enable-service) ENABLE_SERVICE=1 ;;
+        --diag)           DIAG=1 ;;
+        *) echo "usage: sudo scripts/install.sh [--enable-service] [--diag]"; exit 1 ;;
+    esac
+done
 
 [[ $EUID -eq 0 ]] || { echo "run with sudo"; exit 1; }
 
-echo "==> [1/8] apt dependencies (kept lean for 512 MB RAM)"
+echo "==> [1/9] apt dependencies (kept lean for 512 MB RAM)"
 apt-get update
 apt-get install -y --no-install-recommends \
     python3-picamera2 python3-pyzbar python3-pil python3-numpy \
     python3-requests python3-gpiozero python3-lgpio \
     python3-venv fonts-dejavu-core alsa-utils
 
-echo "==> [2/8] venv (--system-site-packages: picamera2/libcamera must come from apt)"
+echo "==> [2/9] venv (--system-site-packages: picamera2/libcamera must come from apt)"
 if [[ ! -d "$REPO_DIR/.venv" ]]; then
     sudo -u "$RUN_USER" python3 -m venv --system-site-packages "$REPO_DIR/.venv"
 fi
 sudo -u "$RUN_USER" "$REPO_DIR/.venv/bin/pip" install -q -e "$REPO_DIR"
 
-echo "==> [3/8] config + data directories"
+echo "==> [3/9] config + data directories"
 mkdir -p /etc/hht /var/log/hht /var/lib/hht
 chown "$RUN_USER": /var/log/hht /var/lib/hht
 if [[ ! -f /etc/hht/hht.toml ]]; then
@@ -46,30 +55,42 @@ EOF
     fi
 fi
 
-echo "==> [4/8] display overlay (panel-mipi-dbi / ST7789V, SPI mode 3)"
+echo "==> [4/9] display overlay (panel-mipi-dbi / ST7789V, SPI mode 3)"
 "$REPO_DIR/scripts/setup_display.sh"
 
-echo "==> [5/8] camera overlay (explicit imx708 — autodetect is unreliable)"
+if [[ $DIAG -eq 1 ]]; then
+    echo "==> [5/9] boot mode: diag (verbose console on the LCD, no splash)"
+    "$REPO_DIR/scripts/setup_splash.sh" --diag
+else
+    echo "==> [5/9] boot splash (plymouth on the LCD, silent boot)"
+    "$REPO_DIR/scripts/setup_splash.sh"
+fi
+
+echo "==> [6/9] camera overlay (explicit imx708 — autodetect is unreliable)"
 "$REPO_DIR/scripts/setup_camera.sh"
 
-echo "==> [6/8] audio overlay (GamePi20 PWM input on GPIO18)"
+echo "==> [7/9] audio overlay (GamePi20 PWM input on GPIO18)"
 "$REPO_DIR/scripts/setup_audio.sh"
 
-echo "==> [7/8] device access for $RUN_USER"
+echo "==> [8/9] device access for $RUN_USER"
 usermod -aG video,render,gpio,spi,audio "$RUN_USER" 2>/dev/null || true
 
-echo "==> [8/8] systemd units"
-for unit in hht.service hht-firstboot.service; do
+echo "==> [9/9] systemd units"
+for unit in hht.service hht-firstboot.service hht-boot-sound.service; do
     sed -e "s|@REPO_DIR@|$REPO_DIR|g" -e "s|@RUN_USER@|$RUN_USER|g" \
         "$REPO_DIR/systemd/$unit" > "/etc/systemd/system/$unit"
 done
 systemctl daemon-reload
+# Boot chime plays the moment the sound card is up — enable it always (the
+# leading '-' in the unit means it no-ops harmlessly if audio isn't ready).
+systemctl enable hht-boot-sound.service
 if [[ $ENABLE_SERVICE -eq 1 ]]; then
     systemctl enable hht.service
-    echo "    hht.service enabled (starts on boot, no login needed)"
+    echo "    hht.service + hht-boot-sound.service enabled (start on boot, no login needed)"
 else
     echo "    hht.service installed but NOT enabled (finish Phase 0 first;"
     echo "    then: sudo systemctl enable --now hht)"
+    echo "    hht-boot-sound.service enabled (boot chime over the splash)"
 fi
 echo "    hht-firstboot.service installed, NOT enabled (golden-image flow only)"
 
