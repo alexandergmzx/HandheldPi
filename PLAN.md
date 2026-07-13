@@ -170,12 +170,13 @@ QR at 15 cm, all documented in docs/DEVICE_CONFIGURATION.md with actual values.
 - [x] Buttons: run `python -m hht.tools.buttontest` — press each key, verify GPIO map
       table above; correct config if Waveshare revision differs.
       *(done 2026-07-12: 12/12 correct on first try, no bounce, map as researched)*
-- [ ] Camera: seat FFC (contacts down on Zero), `rpicam-hello --list-cameras` shows imx708;
+- [x] Camera: seat FFC (contacts down on Zero), `rpicam-hello --list-cameras` shows imx708;
       `rpicam-still -o test.jpg` sharp at 15 cm with autofocus.
-      *(probe fixed 2026-07-12: firmware autodetect fails to identify this CM3 —
+      *(done 2026-07-12: firmware autodetect fails to identify this CM3 —
       explicit `camera_auto_detect=0` + `dtoverlay=imx708` works (no `,cam0`: the
-      Zero's single CSI port is CAM1, the default). Sharp autofocused still captured;
-      QR-at-15-cm focus check still pending → full smoke test §3.7)*
+      Zero's single CSI port is CAM1, the default). In-app QR decode verified at
+      close range off a screen: **73–102 ms latency** (target was <500 ms), badge
+      login + debounce confirmed on hardware — Phase 1's core numbers, measured early)*
 - [ ] Battery sanity: run display+camera+WiFi loop 30 min on battery, watch for brownout
       (`vcgencmd get_throttled`). Record runtime estimate.
 - [ ] Fill in the "as-built" column in docs/DEVICE_CONFIGURATION.md.
