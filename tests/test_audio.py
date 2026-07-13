@@ -26,6 +26,20 @@ def test_committed_cues_are_short_low_level_stereo_wavs():
             assert max(abs(sample) for sample in samples) <= 6500
 
 
+def test_committed_songs_are_low_level_stereo_wavs():
+    for name in ("ringtone", "funny"):
+        path = SOUNDS / f"{name}.wav"
+        assert path.is_file(), f"missing song asset: {path}"
+        with wave.open(str(path), "rb") as wav:
+            assert wav.getnchannels() == 2
+            assert wav.getsampwidth() == 2
+            assert wav.getframerate() == 44_100
+            duration = wav.getnframes() / wav.getframerate()
+            assert 2.0 <= duration <= 60.0
+            samples = array("h", wav.readframes(wav.getnframes()))
+            assert max(abs(sample) for sample in samples) <= 6500
+
+
 def test_none_backend_uses_null_player(cfg):
     cfg.audio.backend = "none"
     assert isinstance(make_audio_player(cfg), NullAudioPlayer)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the original, low-level stereo WAV cues used by the HHT."""
+"""Generate the low-level stereo WAV cues and songs used by the HHT."""
 
 from __future__ import annotations
 
@@ -23,6 +23,36 @@ CUES = {
     "offline": [(440, 0.08, 0.02), (294, 0.13, 0.0)],
 }
 
+# User-provided melodies. A score contains its tempo followed by
+# (frequency Hz, note divider) pairs. Frequency 0 is a rest; negative dividers
+# are dotted notes. This matches the convention used by the source sketches.
+SONGS = {
+    "ringtone": (180, [
+        (659, 8), (587, 8), (370, 4), (415, 4),
+        (554, 8), (494, 8), (294, 4), (330, 4),
+        (494, 8), (440, 8), (277, 4), (330, 4),
+        (440, 2),
+    ]),
+    "funny": (160, [
+        (0, 1), (0, 1),
+        (262, 4), (330, 4), (392, 4), (330, 4),
+        (262, 4), (330, 8), (392, -4), (330, 4),
+        (220, 4), (262, 4), (330, 4), (262, 4),
+        (220, 4), (262, 8), (330, -4), (262, 4),
+        (196, 4), (247, 4), (294, 4), (247, 4),
+        (196, 4), (247, 8), (294, -4), (247, 4),
+        (196, 4), (196, 8), (196, -4), (196, 8), (196, 4),
+        (196, 4), (196, 4), (196, 8), (196, 4),
+        (262, 4), (330, 4), (392, 4), (330, 4),
+        (262, 4), (330, 8), (392, -4), (330, 4),
+        (220, 4), (262, 4), (330, 4), (262, 4),
+        (220, 4), (262, 8), (330, -4), (262, 4),
+        (196, 4), (247, 4), (294, 4), (247, 4),
+        (196, 4), (247, 8), (294, -4), (247, 4),
+        (196, -1),
+    ]),
+}
+
 
 def _tone(frequency: float, duration: float) -> bytes:
     frames = max(1, round(RATE * duration))
@@ -44,6 +74,30 @@ def _silence(duration: float) -> bytes:
     return b"\0\0\0\0" * round(RATE * duration)
 
 
+def _render_song(tempo: int, score: list[tuple[int, int]]) -> bytes:
+    whole_note = 60.0 * 4.0 / tempo
+    payload = bytearray()
+    for frequency, divider in score:
+        duration = whole_note / abs(divider)
+        if divider < 0:
+            duration *= 1.5
+        if frequency == 0:
+            payload.extend(_silence(duration))
+        else:
+            payload.extend(_tone(frequency, duration * 0.9))
+            payload.extend(_silence(duration * 0.1))
+    return bytes(payload)
+
+
+def _write_wav(path: Path, payload: bytes) -> None:
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(2)       # GPIO18 gets the sound whichever side is mapped
+        wav.setsampwidth(2)
+        wav.setframerate(RATE)
+        wav.writeframes(payload)
+    print(path)
+
+
 def generate(output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     for name, notes in CUES.items():
@@ -51,13 +105,9 @@ def generate(output_dir: Path) -> None:
         for frequency, duration, gap in notes:
             payload.extend(_tone(frequency, duration))
             payload.extend(_silence(gap))
-        path = output_dir / f"{name}.wav"
-        with wave.open(str(path), "wb") as wav:
-            wav.setnchannels(2)       # GPIO18 gets the cue whichever side is mapped
-            wav.setsampwidth(2)
-            wav.setframerate(RATE)
-            wav.writeframes(payload)
-        print(path)
+        _write_wav(output_dir / f"{name}.wav", payload)
+    for name, (tempo, score) in SONGS.items():
+        _write_wav(output_dir / f"{name}.wav", _render_song(tempo, score))
 
 
 def main() -> None:
