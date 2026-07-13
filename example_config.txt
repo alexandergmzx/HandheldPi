@@ -20,10 +20,10 @@ dtparam=audio=on
 # /boot/firmware/overlays/README
 
 # Automatically load overlays for detected cameras
-# HHT: manual camera setup here (auto-detect off + explicit imx708 in [all]).
-# Verify the port label on the Zero 2 W — see the note in the [all] section.
+# HHT (verified on HHT-001): firmware autodetect FAILS to identify the Camera
+# Module 3 even with a good cable — keep it off and load the overlay explicitly
+# in the [all] section below. The kernel probe works fine.
 camera_auto_detect=0
-#dtoverlay=imx708,cam0
 
 # Automatically load overlays for detected DSI displays
 # HHT: DSI auto-detect only; does not touch our SPI panel — safe to leave on.
@@ -67,11 +67,12 @@ dtoverlay=nospi10
 [all]
 dtparam=uart0=on
 #camera_auto_detect=0
-# HHT: Camera Module 3 (IMX708). The ,cam0 port label is meaningful mainly on
-# dual-port boards (Pi 5 / CM4). On the Zero 2 W's single CSI connector, VERIFY
-# with `rpicam-hello --list-cameras`. If the list is empty, use `dtoverlay=imx708`
-# (no port) OR set camera_auto_detect=1 above and delete this line.
-dtoverlay=imx708,cam0
+# HHT: Camera Module 3 (IMX708), explicit overlay (verified on HHT-001).
+# NO ,cam0 suffix: the Zero 2 W's single CSI connector is CAM1, the overlay
+# default — ,cam0 targets a port this board doesn't have and the sensor is
+# never probed. Verify with `dmesg | grep imx708` ("camera module ID 0x0301")
+# and `rpicam-hello --list-cameras`.
+dtoverlay=imx708
 
 # --- HHT GamePi20 display (managed by setup_display.sh) ---
 # ST7789V 2.0" 320x240 SPI IPS panel via the mainline panel-mipi-dbi TinyDRM

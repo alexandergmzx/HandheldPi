@@ -30,8 +30,9 @@ and archived per unit.
   side), routed clear of the battery.
 - microSD ≥ 8 GB; workstation with Raspberry Pi Imager; SSH key pair.
 - WiFi SSID/password of the warehouse network; IP/port of the WMS server.
-- Printed test QR sheet: one badge (`OP:1001`), one location (`LOC:A-01-03`),
-  one article (`ART:8412345678905`) — matches the built-in mock task data.
+- Test QR sheet: print [img/test_qr_sheet.png](img/test_qr_sheet.png) or display it on
+  a monitor/phone — badge `OP:1001`, location `LOC:A-01-03`, article
+  `ART:8412345678905`, matching the built-in mock task data.
 
 ## 3. Provisioning steps
 
@@ -125,15 +126,32 @@ may differ) and re-run.
 
 ### 3.6 Camera verification
 
+**Bring-up finding (HHT-001):** the firmware's `camera_auto_detect` failed to identify
+the Camera Module 3 even with a good cable, while the kernel driver probes it fine. Use
+an explicit overlay — append to `/boot/firmware/config.txt` and reboot:
+
 ```
-rpicam-hello --list-cameras          # expect: imx708 (Camera Module 3)
+# --- HHT camera: explicit overlay ---
+camera_auto_detect=0
+dtoverlay=imx708
+# --- HHT camera end ---
+```
+
+Do **not** add a `,cam0` suffix: the Zero 2 W's single CSI port is CAM1, which is the
+overlay default. Then verify:
+
+```
+dmesg | grep imx708                  # expect: "imx708 10-001a: camera module ID 0x0301"
+rpicam-hello --list-cameras          # expect: imx708 [4608x2592 ...]
 rpicam-still --autofocus-mode continuous -t 3000 -o /tmp/test.jpg
 ```
 
 Hold the test QR sheet ~15 cm from the lens for the still; copy it off and confirm the
 QR is sharp.
 
-**Check:** `imx708` detected; QR legible in the still.
+**Check:** `camera module ID` in dmesg, `imx708` listed, QR legible in the still. If
+dmesg instead shows `failed to read chip id` or stays silent, the FFC cable is bad or
+reversed (blue stiffener faces the latch on both ends; 22-pin end at the Pi).
 
 ### 3.7 Device configuration + smoke test
 
