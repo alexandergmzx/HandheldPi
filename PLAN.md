@@ -51,6 +51,11 @@ the wrong module loads and nothing binds to `spi0.0`. Since SPI modalias autoloa
 considers that first name, `panel_mipi_dbi` is also force-loaded at boot via
 `/etc/modules-load.d/hht-display.conf`. Both handled by `scripts/setup_display.sh`. With
 this fix the panel binds as `/dev/fb1` (`panel-mipi-dbid`) next to the HDMI `fb0`.
+Two more panel facts from the same session: the module needs **SPI mode 3** (`cpha,cpol`
+on the overlay line — mode 0 leaves it completely dark) and **MADCTL 0xa8** (BGR wiring),
+both matching the community-verified config for the Waveshare 2.0" ST7789V
+(forums.raspberrypi.com t=337019). Note the backlight only powers on when the panel is
+first painted — a black screen after boot with the service disabled is normal.
 
 ### Buttons (GamePi20)
 

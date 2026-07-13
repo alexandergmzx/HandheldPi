@@ -34,9 +34,9 @@ sed "/^${BEGIN_MARK}$/,/^${END_MARK}$/d" "$CONFIG_TXT" > "$tmp"
 cat >> "$tmp" <<EOF
 ${BEGIN_MARK}
 dtparam=spi=on
-dtoverlay=mipi-dbi-spi,spi0-0,speed=48000000
+dtoverlay=mipi-dbi-spi,spi0-0,speed=48000000,cpha,cpol
 dtparam=compatible=gamepi20\\0panel-mipi-dbi-spi
-dtparam=width=320,height=240
+dtparam=width=320,height=240,width-mm=40,height-mm=30
 dtparam=reset-gpio=27,dc-gpio=25
 dtparam=backlight-gpio=24
 dtparam=write-only
@@ -55,8 +55,11 @@ echo panel_mipi_dbi > /etc/modules-load.d/hht-display.conf
 rm -f /lib/firmware/st7789v.bin   # stale blob from pre-rename installs
 
 echo "    display overlay written to $CONFIG_TXT (reboot required)"
-echo "    troubleshooting: garbage pixels -> add 'dtparam=cpha,cpol' (SPI mode 3);"
-echo "    mirrored/rotated -> edit MADCTL (0x36) in firmware/st7789v_gamepi20.txt"
-echo "    and re-run this script. To show the boot console on the LCD, append"
-echo "    'fbcon=map:1' (panel usually enumerates as fb1 next to the HDMI fb0)"
-echo "    to /boot/firmware/cmdline.txt."
+echo "    NOTE: SPI mode 3 (cpha,cpol) is required by the Waveshare ST7789V module"
+echo "    (mode 0 leaves it completely dark; RPi forums t=337019). Backlight only"
+echo "    turns on when something paints the panel — a black screen right after"
+echo "    boot with the hht service disabled is normal."
+echo "    troubleshooting: upside-down/mirrored -> edit MADCTL (0x36) in"
+echo "    firmware/st7789v_gamepi20.txt and re-run this script. To show the boot"
+echo "    console on the LCD, append 'fbcon=map:1' (panel is fb1 next to the"
+echo "    HDMI fb0) to /boot/firmware/cmdline.txt."

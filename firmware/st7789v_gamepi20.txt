@@ -7,13 +7,16 @@
 # Derived from Waveshare's ST7789V demo init. PHASE 0: validate on hardware —
 # VCOMS (0xbb), gamma (0xe0/0xe1) and MADCTL (0x36) may need tuning.
 #
-# MADCTL 0x70 = MY=0 MX=1 MV=1 -> landscape 320x240, connector on the right.
-# If the image is mirrored or upside down try 0xa0, 0x60 or 0xc0 (then reboot).
+# MADCTL 0xa8 = MY|MV|BGR -> landscape 320x240. Value proven for the Waveshare
+# 2.0" ST7789V module (RPi forums t=337019, same reset/dc/backlight wiring).
+# Keep the BGR bit (0x08) set — the panel is wired BGR, without it red and blue
+# swap. If the image is upside down use 0x68; mirrored, try 0xe8 or 0x28.
+# NOTE: the panel also needs SPI mode 3 (cpha,cpol in the overlay line).
 
 command 0x11
 delay 120
 
-command 0x36 0x70
+command 0x36 0xa8
 command 0x3a 0x05
 
 command 0xb2 0x0c 0x0c 0x00 0x33 0x33

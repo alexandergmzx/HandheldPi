@@ -92,10 +92,11 @@ dtoverlay=imx708,cam0
 # Tuning (nothing shown / garbage pixels / wrong colors / rotation): edit the
 # firmware .txt (MADCTL 0x36, VCOMS 0xbb, INVON 0x21) and re-run setup_display.sh,
 # or lower speed= to 32000000 — full table in docs/DEVICE_CONFIGURATION.md §3.4.
+# cpha,cpol = SPI mode 3 — required by this module; mode 0 leaves it dark.
 dtparam=spi=on
-dtoverlay=mipi-dbi-spi,spi0-0,speed=48000000
+dtoverlay=mipi-dbi-spi,spi0-0,speed=48000000,cpha,cpol
 dtparam=compatible=gamepi20\0panel-mipi-dbi-spi
-dtparam=width=320,height=240
+dtparam=width=320,height=240,width-mm=40,height-mm=30
 dtparam=reset-gpio=27,dc-gpio=25
 dtparam=backlight-gpio=24
 dtparam=write-only

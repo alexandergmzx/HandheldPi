@@ -96,10 +96,13 @@ Tuning table — edit `firmware/st7789v_gamepi20.txt`, re-run
 |---|---|
 | Overlay missing | confirm `/boot/firmware/overlays/mipi-dbi-spi.dtbo` exists; if not, `sudo apt full-upgrade` (older bookworm images predate it) |
 | No fb1; `fbtft`/`fb_st7789v` in dmesg; `/sys/bus/spi/devices/spi0.0/driver` missing | modalias collision: the panel's first compatible must be a neutral name (`gamepi20`), never a controller name, and `panel_mipi_dbi` must be listed in `/etc/modules-load.d/hht-display.conf` — both written by `setup_display.sh`; re-run it (found during HHT-001 bring-up) |
+| Black right after boot | normal while the hht service is disabled — the backlight only powers on when something paints the panel (`/sys/class/backlight/*/bl_power` is 4 until then); run the smoke test in §3.7 |
+| Nothing even when painted | SPI mode: the Waveshare module needs mode 3 — `cpha,cpol` must be on the `dtoverlay=mipi-dbi-spi` line (mode 0 = panel ignores all commands; found during HHT-001 bring-up, forum-verified) |
 | Nothing at all | check `dmesg \| grep -i mipi` for firmware load errors |
-| Garbage pixels | SPI mode: add `dtparam=cpha,cpol`; or lower `speed=` to 32 MHz |
+| Garbage pixels | lower `speed=` to 32 MHz |
+| Colors swapped (red↔blue) | keep the BGR bit (0x08) in MADCTL `0x36` |
 | Colors inverted | remove/keep `command 0x21` (INVON) |
-| Mirrored / rotated | MADCTL `0x36`: try `0xa0`, `0x60`, `0xc0` |
+| Upside down / mirrored | MADCTL `0x36`: `0xa8` baseline; `0x68` flips, `0xe8`/`0x28` mirror |
 | Washed out | tune VCOMS `0xbb` (0x1a–0x35) |
 
 Optionally add `fbcon=map:1` to `/boot/firmware/cmdline.txt` to get the Linux console
