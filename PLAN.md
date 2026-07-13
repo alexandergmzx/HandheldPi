@@ -54,8 +54,11 @@ this fix the panel binds as `/dev/fb1` (`panel-mipi-dbid`) next to the HDMI `fb0
 Two more panel facts from the same session: the module needs **SPI mode 3** (`cpha,cpol`
 on the overlay line — mode 0 leaves it completely dark) and **MADCTL 0xa8** (BGR wiring),
 both matching the community-verified config for the Waveshare 2.0" ST7789V
-(forums.raspberrypi.com t=337019). Note the backlight only powers on when the panel is
-first painted — a black screen after boot with the service disabled is normal.
+(forums.raspberrypi.com t=337019). Finally, fbdev *writes* never enable the DRM
+pipeline (that is fbcon's job, and fbcon lives on the HDMI fb0) — the panel stays
+uninitialized with the backlight off until an unblank + `FB_ACTIVATE_FORCE` mode-set;
+`FramebufferDisplay` now issues both on startup. A black screen while the hht service
+is not running is therefore normal.
 
 ### Buttons (GamePi20)
 

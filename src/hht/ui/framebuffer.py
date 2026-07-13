@@ -7,7 +7,9 @@ emulated framebuffer by accident.
 
 from __future__ import annotations
 
+import fcntl
 import logging
+import struct
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +19,14 @@ from ..logsetup import evt
 from . import Display
 
 log = logging.getLogger("hht.display.fb")
+
+_FBIOGET_VSCREENINFO = 0x4600
+_FBIOPUT_VSCREENINFO = 0x4601
+_FBIOBLANK = 0x4611
+_FB_BLANK_UNBLANK = 0
+_FB_ACTIVATE_FORCE = 128
+_VSCREENINFO_LEN = 160
+_ACTIVATE_OFFSET = 84  # offsetof(fb_var_screeninfo, activate)
 
 
 def _autodetect_fb() -> str:
@@ -42,8 +52,29 @@ class FramebufferDisplay(Display):
         if self._bpp != 16:
             raise RuntimeError(f"{device}: expected 16 bpp RGB565, got {self._bpp}")
         self._fb = open(device, "r+b", buffering=0)
+        self._activate()
         evt(log, "framebuffer_opened", device=device, width=w, height=h,
             stride=self._stride)
+
+    def _activate(self) -> None:
+        """Wake the panel before blitting (HHT-001 bring-up finding).
+
+        Writing pixels to the fbdev never enables the DRM pipeline — that is
+        normally fbcon's job, and fbcon lives on the HDMI framebuffer. Until an
+        unblank + forced mode-set happen, the driver has not sent the panel init
+        sequence and the backlight stays off (bl_power=4): the screen is black no
+        matter what is written. So do both explicitly; on an already-active panel
+        they are harmless no-ops.
+        """
+        try:
+            fcntl.ioctl(self._fb, _FBIOBLANK, _FB_BLANK_UNBLANK)
+            vinfo = bytearray(_VSCREENINFO_LEN)
+            fcntl.ioctl(self._fb, _FBIOGET_VSCREENINFO, vinfo)
+            struct.pack_into("I", vinfo, _ACTIVATE_OFFSET, _FB_ACTIVATE_FORCE)
+            fcntl.ioctl(self._fb, _FBIOPUT_VSCREENINFO, vinfo)
+        except OSError as e:
+            evt(log, "framebuffer_activate_failed", _level=logging.WARNING,
+                error=str(e))
 
     def show(self, img: Image.Image, tag: str = "") -> None:
         if self._rotation:
