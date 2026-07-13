@@ -127,18 +127,11 @@ may differ) and re-run.
 ### 3.6 Camera verification
 
 **Bring-up finding (HHT-001):** the firmware's `camera_auto_detect` failed to identify
-the Camera Module 3 even with a good cable, while the kernel driver probes it fine. Use
-an explicit overlay — append to `/boot/firmware/config.txt` and reboot:
-
-```
-# --- HHT camera: explicit overlay ---
-camera_auto_detect=0
-dtoverlay=imx708
-# --- HHT camera end ---
-```
-
-Do **not** add a `,cam0` suffix: the Zero 2 W's single CSI port is CAM1, which is the
-overlay default. Then verify:
+the Camera Module 3 even with a good cable, while the kernel driver probes it fine.
+`scripts/setup_camera.sh` (run by install.sh since then) therefore writes an explicit
+overlay block — `camera_auto_detect=0` + `dtoverlay=imx708`, and never a `,cam0`
+suffix: the Zero 2 W's single CSI port is CAM1, the overlay default. Verify after the
+reboot:
 
 ```
 dmesg | grep imx708                  # expect: "imx708 10-001a: camera module ID 0x0301"
@@ -184,8 +177,20 @@ systemctl status hht                  # active (running)
 sudo reboot
 ```
 
-**Check:** after reboot the login screen appears on the LCD without any SSH interaction;
-`systemctl status hht` is `active (running)`.
+**Check:** after reboot the login screen appears on the LCD without any SSH interaction
+(`hht.service` is a systemd *system* unit — it runs at boot with no login or user
+session); `systemctl status hht` is `active (running)`.
+
+### 3.9 Automated verification
+
+```
+scripts/verify_unit.sh
+```
+
+Runs every software-checkable item of this procedure (OS, display chain, camera,
+config validity, service, permissions) and prints PASS/FAIL per check. **All PASS**
+is the provisioning gate — paste the output into the unit's test report as evidence.
+Only the physical checks (§3.5 buttons, one pick against the QR sheet) remain manual.
 
 ## 4. Handover
 
@@ -219,8 +224,16 @@ sudo reboot
   inspect with `sqlite3 /var/lib/hht/queue.db 'SELECT id,attempts,last_error FROM
   confirmations WHERE sent_at IS NULL'`.
 
+## 7. Provisioning more units, faster
+
+This document covers one unit end-to-end. For multiple units — golden SD images,
+clone hygiene (SSH host keys, machine-id), zero-touch per-unit identity via
+`hht-firstboot.service`, and the ~10-minute bench flow — see
+[FLEET_PROVISIONING.md](FLEET_PROVISIONING.md).
+
 ## Revision history
 
 | Rev | Date | Author | Change |
 |---|---|---|---|
 | 0.1 | 2026-07-11 | | initial draft (pre-hardware) |
+| 0.2 | 2026-07-12 | | HHT-001 bring-up findings folded in (display driver chain, SPI mode 3, explicit camera overlay); added §3.9 automated verification and §7 fleet pointer |

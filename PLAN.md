@@ -228,7 +228,11 @@ loses nothing; queue drains automatically on reconnect.
 Exit criteria: flash-to-working-terminal reproducible from docs alone; `systemctl status
 hht` green after reboot; test report filled in.
 
-- [ ] systemd unit: auto-start after network, restart on crash, journal + file logs.
+- [x] systemd unit: auto-start after network, restart on crash, journal + file logs.
+      *(enabled on HHT-001 2026-07-12 — system service, boots into the app with no login)*
+- [x] Fleet provisioning: `verify_unit.sh` (Phase 0 checklist as one command),
+      `setup_camera.sh`, golden-image flow with `hht-firstboot` identity-from-serial
+      and clone hygiene — docs/FLEET_PROVISIONING.md *(2026-07-12)*
 - [ ] `install.sh` idempotent end-to-end on a fresh image (this *is* the provisioning test).
 - [ ] Log rotation; `hht.tools.logreport` — summarize a shift's JSONL (picks/hour, errors,
       offline windows).

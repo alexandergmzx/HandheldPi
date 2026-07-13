@@ -85,15 +85,19 @@ Full procedure with verification checks:
 
 ```bash
 git clone <repo-url> ~/HandheldPi && cd ~/HandheldPi
-sudo scripts/install.sh          # apt deps, venv, config, display overlay, service
+sudo scripts/install.sh          # apt deps, venv, config, display+camera overlays, service
 sudo reboot
-# verify display / buttons / camera per the doc, edit /etc/hht/hht.toml, then:
-sudo systemctl enable --now hht
+scripts/verify_unit.sh           # automated Phase 0 verification — expect all PASS
+# button sweep + one test pick per the doc, edit /etc/hht/hht.toml, then:
+sudo systemctl enable --now hht  # boots straight into the login screen from now on
 ```
 
-Everything device-specific (WMS URL, device ID, pin map, timeouts, debounce, log paths)
-lives in `/etc/hht/hht.toml` — see the annotated
-[config/hht.toml.example](config/hht.toml.example).
+The app runs as a systemd system service: the terminal is usable from power-on with no
+login or user session — SSH is for provisioning and diagnostics only. Everything
+device-specific (WMS URL, device ID, pin map, timeouts, debounce, log paths) lives in
+`/etc/hht/hht.toml` — see the annotated [config/hht.toml.example](config/hht.toml.example).
+Provisioning several units? Golden images, clone hygiene, and zero-touch per-unit
+identity are covered in [docs/FLEET_PROVISIONING.md](docs/FLEET_PROVISIONING.md).
 
 ## Testing
 
@@ -119,7 +123,12 @@ summarizes a shift.
 
 ## Status
 
-Phase 2 of [PLAN.md](PLAN.md) is functional against the mock WMS (this repo, verified by
-the test suite). Phases 0–1 (hardware bring-up, live camera scanning) are next — the
-checklists are written and waiting for the device. The HTTP client is coded against the
-assumed contract in [API.md](API.md) until the real Spring Boot spec replaces it.
+Phase 0 (hardware bring-up) completed on unit HHT-001 on 2026-07-12 — display, all 12
+buttons, camera, and boot-to-app service verified on the physical device; in-app QR
+decode measured at 73–102 ms (target < 500 ms). The bring-up findings (display driver
+chain, SPI mode, camera autodetect) are recorded in [PLAN.md](PLAN.md) and encoded in
+the install scripts, so the next unit provisions in minutes
+([docs/FLEET_PROVISIONING.md](docs/FLEET_PROVISIONING.md)). Phase 2 (full workflow
+against the mock WMS) passes the test suite on-device. Next: Phase 3 against the real
+Spring Boot API — the HTTP client is coded against the assumed contract in
+[API.md](API.md) until the real spec replaces it.

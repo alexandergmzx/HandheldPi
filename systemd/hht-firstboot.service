@@ -1,0 +1,17 @@
+# HHT golden-image first-boot identity. Installed by scripts/install.sh but
+# NOT enabled — enable it only on the golden master, right before capturing
+# the image (docs/FLEET_PROVISIONING.md). On units whose config already has a
+# real device.id it exits immediately without touching anything.
+[Unit]
+Description=HHT first-boot identity (device.id, hostname, SSH host keys, machine-id)
+After=local-fs.target
+Before=ssh.service hht.service
+ConditionPathExists=/etc/hht/hht.toml
+
+[Service]
+Type=oneshot
+ExecStart=@REPO_DIR@/scripts/hht-firstboot.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
