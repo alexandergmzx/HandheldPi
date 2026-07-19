@@ -20,16 +20,24 @@ backend), not mockups.*
 
 ## How a pick works
 
-1. Operator logs in — scans their badge QR (`OP:1001`) or enters a PIN with the D-pad.
-2. **A** requests the next task from the WMS: the display shows the location big and
-   bright.
+1. Operator logs in — scans their badge QR (`OP:picker02`, which supplies the WMS
+   username) and enters their numeric PIN with the D-pad (the account password).
+2. **A** claims the next task from the WMS: the display shows the location big and
+   bright. Claiming always needs connectivity; an interrupted task resumes where it
+   left off.
 3. Operator walks there and scans the location label — a wrong location shows a red
-   error and blocks progress.
-4. Scans the article (QR or its bare EAN barcode) — wrong article, same treatment.
-5. Sets the quantity with ▲/▼ (short picks flagged), confirms with **A**.
-6. The confirmation is written to a persistent queue and delivered to the WMS —
-   immediately when online, automatically later when not. The operator is never blocked
-   by the network.
+   error and blocks progress. Scans are authoritative WMS state transitions; in a WiFi
+   dead zone they validate locally against the claimed task and queue for replay.
+4. Scans the article QR (`ART:<sku>`, exact — bare EANs are not accepted) — wrong
+   article, same treatment.
+5. Counts the stock with ▲/▼ and confirms with **A**. The WMS accepts only the exact
+   task quantity: a mismatched count shows a DISCREPANCY screen ("call supervisor")
+   and never confirms.
+6. The confirmation (and any offline scans before it) sit in a persistent FIFO queue
+   and reach the WMS — immediately when online, automatically later when not. The
+   operator is never blocked by the network. If the WMS refuses a replayed pick
+   (e.g. an admin blocked the task meanwhile), the device shows SYNC FAILED and parks
+   the operations for audit — nothing is silently dropped.
 
 Short synthesized cues distinguish ready, accepted badge/location/article, rejected
 scan, offline transition, and pick confirmation. On the GamePi20 they use the onboard
@@ -70,7 +78,7 @@ assets/           plymouth boot-splash theme + generated original sound cues
 firmware/         panel init sequence source (compiled to /lib/firmware at install)
 systemd/          service unit template
 docs/             device configuration procedure, test specification, test report template
-API.md            assumed WMS REST contract (to be replaced by the real one)
+API.md            client notes on the real WMS v1 REST contract + offline protocol
 PLAN.md           research notes + phased implementation plan
 ```
 
@@ -84,9 +92,16 @@ python3 -m venv .venv && .venv/bin/pip install -e .[dev]
 .venv/bin/python -m hht -c config/dev.toml
 ```
 
-Keys: arrows = D-pad · `a`/Enter = A · `b` = B · `x` = X (PIN login) · Tab = status ·
-`S` = hold-Start (logout) · **`:` = type a scan payload** (e.g. `:OP:1001`,
-`:LOC:A-01-03`) · `q` = quit.
+Keys: arrows = D-pad · `a`/Enter = A · `b` = B · Tab = status ·
+`S` = hold-Start (logout) · **`:` = type a scan payload** (e.g. `:OP:picker01`,
+`:LOC:A-01-03`) · `q` = quit. Mock login: badge `OP:picker01`, PIN 1234.
+
+To run against a real WMS dev instance on this machine instead (badge
+`OP:picker02`, PIN 2468 from the WMS dev seed):
+
+```bash
+.venv/bin/python -m hht -c config/dev-http.toml
+```
 
 ## Install on the device
 
@@ -112,14 +127,17 @@ identity are covered in [docs/FLEET_PROVISIONING.md](docs/FLEET_PROVISIONING.md)
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest                # unit + functional-script suites (54 tests)
+.venv/bin/python -m pytest                # unit + HTTP + functional-script suites (100 tests)
 .venv/bin/python -m hht -c config/dev.toml --script tests/scripts/offline_pick.txt
 ```
 
 Three layers, all traced to the numbered cases in
 [docs/TEST_SPECIFICATION.md](docs/TEST_SPECIFICATION.md):
 
-- **Unit tests** for the state machine, offline queue, config and mock WMS.
+- **Unit tests** for the state machine, offline queue, config and mock WMS, plus
+  HTTP-level tests of the real client against an in-process fake v1 server
+  (`tests/fake_wms.py` — real sockets, so timeouts and connection-refused are exercised
+  for real).
 - **Scripted functional tests** (`tests/scripts/*.txt`): a tiny DSL (`press a`,
   `scan LOC:A-01-03`, `wms offline`, `expect_state CONFIRMED`, `expect_queue 1`) drives
   the real app wiring deterministically — with the PNG display backend every step is
@@ -139,6 +157,11 @@ decode measured at 73–102 ms (target < 500 ms). The bring-up findings (display
 chain, SPI mode, camera autodetect) are recorded in [PLAN.md](PLAN.md) and encoded in
 the install scripts, so the next unit provisions in minutes
 ([docs/FLEET_PROVISIONING.md](docs/FLEET_PROVISIONING.md)). Phase 2 (full workflow
-against the mock WMS) passes the test suite on-device. Next: Phase 3 against the real
-Spring Boot API — the HTTP client is coded against the assumed contract in
-[API.md](API.md) until the real spec replaces it.
+against the mock WMS) passes the test suite on-device.
+
+Phase 3 (real WMS integration) code-complete on 2026-07-15: the client now speaks the
+real `warehouse-management` v1 contract ([API.md](API.md)) — badge + PIN login as WMS
+credentials, server-authoritative scans, Level 2 store-and-forward with dead-letter and
+SYNC FAILED surfacing, token-expiry handling — with the full suite (100 tests) green.
+Remaining: loopback e2e against a running WMS dev instance, then LAN e2e on the
+physical unit (see [PLAN.md](PLAN.md) Phase 3 checklist).

@@ -15,6 +15,26 @@ Goals, in priority order:
 
 ---
 
+## Ecosystem role (ECOSYSTEM v3, 2026-07-18)
+
+This repo is the ecosystem's **`hht-picker`** — the first-generation picker
+terminal of the warehouse-automation ecosystem (map: `../ECOSYSTEM.md`). Its
+mandate there is: **finish to demonstrable, then freeze.** The frozen device
+becomes a standing proof that the WMS v1 API serves two client generations
+unchanged — this Python terminal and its successor, warehouse-android's
+`:app-picker` (Kotlin/CameraX on a refurbished phone).
+
+Concretely:
+
+- *Finish to demonstrable* = the open boxes below: Phase 0 leftovers (SPI clock
+  tuning, battery sanity, audio baseline, as-built column), Phase 1 scan-loop
+  polish, Phase 2 scripted-UI completion, the Phase 3 LAN e2e on HHT-001, and
+  Phase 4 (splash, idempotent install, log report, final docs + test report).
+- *Freeze* = after that, maintenance only: keep the device green against the
+  pinned WMS v1 contract. New picking features belong in `:app-picker`, not here.
+
+---
+
 ## Hardware facts (researched 2026-07-11)
 
 ### Display
@@ -147,9 +167,11 @@ slightly heavier install).
 - **Store-and-forward confirmations:** every pick confirmation is written to a persistent
   sqlite queue first, then a background flusher delivers FIFO with an idempotency key.
   "Online" just means delivery is immediate; WiFi loss changes nothing in the workflow.
-- **Scan validation:** the task payload carries the expected location/article codes, so
-  validation is local and works offline; when online the device also reports scans to the
-  WMS (`report_scan`) as best-effort telemetry. Documented in API.md.
+- **Scan validation:** scans are authoritative WMS v1 state transitions. The task payload
+  carries the expected location/article codes, so the device pre-validates locally with
+  the exact rule the server applies; while offline the ordered op chain (scan-location →
+  scan-article → confirm) queues and replays FIFO on reconnect — server replay-safety and
+  confirm idempotency make redelivery harmless. Documented in API.md.
 - **Structured logging:** JSON-lines to a rotating file (machine analysis) + human-readable
   stderr/journal. Every workflow transition, scan, and network event is one JSON record.
 - **Scripted functional testing:** `--script file.txt` feeds button/scan events into the
@@ -159,11 +181,13 @@ slightly heavier install).
 Picking workflow states:
 
 ```
-STARTUP → LOGIN_BADGE ⇄ LOGIN_PIN → IDLE → FETCHING → GOTO_LOCATION → SCAN_ARTICLE
-                                      ▲  ↘ NO_TASK        │ (wrong scan → error, stay)
-                                      │                    ▼
-                                      └── CONFIRMED ← SET_QUANTITY
-Global: Select = status screen, Start(hold) = logout, error banner with timeout.
+STARTUP → LOGIN_BADGE → LOGIN_PIN → IDLE → GOTO_LOCATION → SCAN_ARTICLE
+               ▲     (badge = username,  ▲ ↘ NO_TASK  │ (wrong scan → error, stay)
+               │      PIN = password)    │            ▼
+               │        CONFIRMED ←──────┴─ SET_QUANTITY ⇄ DISCREPANCY
+               └── SYNC_FAILED (replay rejected → dead-letter, see supervisor)
+Global: Select = status screen, Start(hold) = logout (blocked while ops are
+pending), error banner with timeout.
 ```
 
 ---
@@ -209,42 +233,68 @@ clearance inside the shell. Mitigation: everything above is config, not code.
 
 Exit criteria: point at QR → decoded payload on LCD < 500 ms typical, no duplicate reads.
 
-- [ ] `hht.scanner.camera_scanner`: picamera2 lores YUV → pyzbar, decode thread posting
-      ScanEvents.
-- [ ] Debounce: same payload suppressed for `scanner.debounce_s` (default 2 s); different
-      payload accepted immediately.
+- [x] `hht.scanner.camera_scanner`: picamera2 lores YUV → pyzbar, decode thread posting
+      ScanEvents. *(implemented; verified on HHT-001 2026-07-12, 73–102 ms in-app decode)*
+- [x] Debounce: same payload suppressed for `scanner.debounce_s` (default 2 s); different
+      payload accepted immediately. *(`camera_scanner._debounced`; confirmed on hardware
+      2026-07-12)*
 - [x] Semantic sound feedback: distinct non-blocking cues for accepted badge/location/
       article, rejection, offline transition, ready, and confirmation; silent test backend.
 - [ ] On-screen feedback: last code, symbology, decode latency; invert screen 100 ms on
       accept as an accessibility/fallback equivalent to sound.
-- [ ] Measure and record decode latency + CPU on Zero 2 W (goes in test report).
-- [ ] Test cases HHT-TC-01x (see docs/TEST_SPECIFICATION.md).
+- [ ] Measure and record decode latency + CPU on Zero 2 W (goes in test report). *(latency
+      measured 2026-07-12: 73–102 ms; CPU/formal test-report entry still open)*
+- [ ] Test cases HHT-TC-01x (on device, see docs/TEST_SPECIFICATION.md).
 
 ## Phase 2 — Picking workflow UI (developable off-device)
 
 Exit criteria: full pick cycle against the **mock WMS** on the dev machine and on device;
 scripted functional tests pass.
 
-- [ ] State machine (already scaffolded) hardened: every event in every state defined,
-      unknown events logged and ignored.
-- [ ] Screens: badge/PIN login, idle, task card (location big + article + qty), quantity
+- [x] State machine (already scaffolded) hardened: every event in every state defined,
+      unknown events logged and ignored. *(2026-07-15, Phase 3 workflow rework)*
+- [x] Screens: badge/PIN login, idle, task card (location big + article + qty), quantity
       picker, error banners, status screen (net/queue/battery/operator).
-- [ ] PIN entry with D-pad; badge login via `OP:<id>` QR.
-- [ ] Scripted tests: happy path, wrong location, wrong article, short pick, logout.
-- [ ] Test cases HHT-TC-02x/03x.
+- [x] PIN entry with D-pad; badge login via `OP:<username>` QR.
+- [x] Scripted tests: happy path, wrong location, wrong article, DISCREPANCY (exact-qty,
+      short picks retired), logout — plus offline/SYNC_FAILED/token-expiry chains.
+- [x] Test cases HHT-TC-02x/03x (automated in `tests/test_functional_scripts.py`).
 
 ## Phase 3 — WMS integration + offline queue
 
-Exit criteria: full cycle against the real Spring Boot API; pulling the WiFi mid-shift
-loses nothing; queue drains automatically on reconnect.
+Exit criteria: full cycle against the real Spring Boot API (`warehouse-management`,
+contract v1); pulling the WiFi mid-task loses nothing; the queue drains automatically
+on reconnect; a replay the server refuses is surfaced, never hidden.
 
-- [ ] `http_client` against API.md (replace assumed contract with the real one when it
-      lands); auth token handling; timeouts/retries from config.
-- [ ] Offline queue flusher: FIFO, idempotency keys, exponential backoff capped at
-      `wms.retry_interval_s`; queue depth on status bar.
-- [ ] Connectivity probe → ONLINE/OFFLINE banner.
-- [ ] Failure-mode tests with the WMS stopped, slow (timeout), and returning 4xx/5xx.
-- [ ] Test cases HHT-TC-04x (offline/recovery) — the centrepiece of the test report.
+- [x] `http_client` rewritten against the real v1 contract (`warehouse-management/API.md`):
+      login `{username, password, deviceCode}` → opaque bearer token, `/hht/tasks/*`
+      paths, RFC 9457 problem+json → `WmsRejected(code)` / `WmsAuthError`, logout,
+      `/actuator/health` probe, `X-Correlation-Id` per request *(2026-07-15)*
+- [x] Login flow = badge (`OP:<username>`) + PIN-as-password; picker accounts get numeric
+      passwords of `pin_length` digits (WMS dev seed V1_2: `picker02`/2468) *(2026-07-15)*
+- [x] Level 2 store-and-forward: queue generalized to ordered per-task op chains
+      (scan-location → scan-article → confirm) with dead-letter + poison-cascade;
+      legacy v0 queue DBs migrated on open (`PRAGMA user_version`) *(2026-07-15)*
+- [x] Flusher: FIFO replay, pause-on-auth-expiry (never dead-letters on 401), retry every
+      `wms.retry_interval_s`; queue depth + SYNC_FAILED / re-login events into the UI
+      *(2026-07-15)*
+- [x] Workflow guards: claim refused while sync pending, logout refused with pending ops,
+      mid-state task resume, exact-quantity DISCREPANCY screen (no short picks — WMS
+      invariant) *(2026-07-15)*
+- [x] HTTP failure-mode tests against a real socket (`tests/fake_wms.py`): stopped,
+      slow (timeout), 4xx problem+json, 5xx, 401 sequences *(2026-07-15, 100 pytest)*
+- [x] Test cases HHT-TC-04x (offline/recovery) rewritten and automated
+      (`offline_pick`, `sync_failed`, `discrepancy`, `token_expiry` scripts) —
+      the centrepiece of the test report *(2026-07-15)*
+- [x] Loopback e2e against a running WMS dev instance (`config/dev-http.toml`,
+      badge `OP:picker02`): happy path, server-side wrong scans, offline drain
+      through a kill-able TCP proxy, replay rejection after admin block +
+      resume recovery, token revocation → re-login → drain, quantity mismatch,
+      claim/logout guards, device conflict, correlation-ID join — 44/44 checks
+      *(2026-07-15; evidence in
+      `warehouse-management/docs/evidence/2026-07-15-hht-loopback-integration.md`)*
+- [ ] LAN e2e on HHT-001 over WiFi against the WMS host (runbook firewall §3–4,
+      WMS-printed `LOC:`/`ART:` labels + `make_badge.py` badge); evidence in both repos.
 
 ## Phase 4 — Service, install, docs
 
@@ -259,10 +309,11 @@ hht` green after reboot; test report filled in.
 - [ ] Boot/shutdown splash: plymouth `script` theme on the LCD, silent cmdline,
       `setup_splash.sh --diag` console switch, panel stack (vc4-first) baked into
       the initramfs, boot chime (`hht-boot-sound.service` plays ready.wav over the
-      splash) — verify on HHT-001, record splash timing in DEVICE_CONFIGURATION §5.
+      splash) — *implemented (commit 512ef48); still to verify on HHT-001 and record
+      splash timing in DEVICE_CONFIGURATION §5.*
 - [ ] `install.sh` idempotent end-to-end on a fresh image (this *is* the provisioning test).
-- [ ] Log rotation; `hht.tools.logreport` — summarize a shift's JSONL (picks/hour, errors,
-      offline windows).
+- [x] Log rotation (`logsetup` RotatingFileHandler); `hht.tools.logreport` summarizes a
+      shift's JSONL (picks, scan/workflow errors, offline windows).
 - [ ] Final pass on README, DEVICE_CONFIGURATION, TEST_SPECIFICATION; execute full spec,
       fill TEST_REPORT with evidence (log excerpts, PNG screen captures via ImageDisplay).
 
