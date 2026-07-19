@@ -296,6 +296,8 @@ on reconnect; a replay the server refuses is surfaced, never hidden.
       `warehouse-management/docs/evidence/2026-07-15-hht-loopback-integration.md`)*
 - [ ] LAN e2e on HHT-001 over WiFi against the WMS host (runbook firewall §3–4,
       WMS-printed `LOC:`/`ART:` labels + `make_badge.py` badge); evidence in both repos.
+      *Prepared as a mechanical checklist in docs/LAN_E2E_RUNBOOK.md (2026-07-18); awaits
+      HHT-001 + the WMS host both on the LAN.*
 
 ## Phase 4 — Service, install, docs
 
