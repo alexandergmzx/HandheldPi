@@ -1,20 +1,24 @@
 """Unit tests for the picking workflow. Test IDs reference docs/TEST_SPECIFICATION.md."""
 
 from hht.audio import SoundCue
-from hht.events import Button, ButtonEvent, NetStatusEvent, ScanEvent, TickEvent
+from hht.events import AuthRequiredEvent, Button, ButtonEvent, NetStatusEvent, \
+    ScanEvent, SyncFailedEvent, TickEvent
 from hht.state_machine import State
 
 TASK1_LOC = "A-01-03"
-TASK1_ART = "8412345678905"
+TASK1_ART = "ART-SHIRT"
 
 
 def press(sm, button, action="press"):
     sm.handle(ButtonEvent(Button(button), action))
 
 
-def login(env):
+def login(env, username="picker01", pin=(1, 2, 3, 4)):
     env.sm.handle(TickEvent())
-    env.sm.handle(ScanEvent("OP:1001"))
+    env.sm.handle(ScanEvent(f"OP:{username}"))
+    assert env.sm.state is State.LOGIN_PIN
+    env.sm.pin_digits = list(pin)
+    press(env.sm, "a")
     assert env.sm.state is State.IDLE
 
 
@@ -31,6 +35,11 @@ def scan_to_quantity(env):
     assert env.sm.state is State.SET_QUANTITY
 
 
+def drain(env):
+    result = env.queue.flush(env.wms)
+    return result
+
+
 # -- login (HHT-TC-02x) -------------------------------------------------------
 
 def test_startup_reaches_login(env):
@@ -39,16 +48,35 @@ def test_startup_reaches_login(env):
     assert env.sm.state is State.LOGIN_BADGE
 
 
-def test_badge_login_ok(env):
+def test_badge_then_pin_login_ok(env):
     login(env)
-    assert env.sm.session.operator_name == "Alice"
+    assert env.sm.session.username == "picker01"
 
 
-def test_badge_login_unknown_operator(env):
+def test_badge_scan_alone_does_not_authenticate(env):
     env.sm.handle(TickEvent())
-    env.sm.handle(ScanEvent("OP:9999"))
-    assert env.sm.state is State.LOGIN_BADGE
-    assert "Unknown operator" in env.sm.error_text
+    env.sm.handle(ScanEvent("OP:picker01"))
+    assert env.sm.state is State.LOGIN_PIN
+    assert env.sm.session is None
+
+
+def test_wrong_pin_clears_entry_and_stays(env):
+    env.sm.handle(TickEvent())
+    env.sm.handle(ScanEvent("OP:picker01"))
+    env.sm.pin_digits = [9, 9, 9, 9]
+    press(env.sm, "a")
+    assert env.sm.state is State.LOGIN_PIN
+    assert "Wrong badge/PIN" in env.sm.error_text
+    assert env.sm.pin_digits == [0, 0, 0, 0]
+
+
+def test_unknown_badge_rejected_at_pin_submit(env):
+    env.sm.handle(TickEvent())
+    env.sm.handle(ScanEvent("OP:ghost"))
+    env.sm.pin_digits = [1, 2, 3, 4]
+    press(env.sm, "a")
+    assert env.sm.state is State.LOGIN_PIN
+    assert "Wrong badge/PIN" in env.sm.error_text
 
 
 def test_non_badge_scan_rejected_at_login(env):
@@ -58,27 +86,23 @@ def test_non_badge_scan_rejected_at_login(env):
     assert "badge" in env.sm.error_text.lower()
 
 
-def test_pin_login_ok(env):
+def test_pin_entry_buttons(env):
     env.sm.handle(TickEvent())
-    press(env.sm, "x")
-    assert env.sm.state is State.LOGIN_PIN
-    for digit in (1, 2, 3, 4):  # Alice's PIN in dev.toml
+    env.sm.handle(ScanEvent("OP:picker01"))
+    for digit in (1, 2, 3, 4):
         for _ in range(digit):
             press(env.sm, "up")
         press(env.sm, "right")
     press(env.sm, "a")
     assert env.sm.state is State.IDLE
-    assert env.sm.session.operator_id == "1001"
 
 
-def test_pin_login_wrong_pin_clears_entry(env):
+def test_pin_back_returns_to_badge(env):
     env.sm.handle(TickEvent())
-    press(env.sm, "x")
-    press(env.sm, "up")  # PIN 1000 — wrong
-    press(env.sm, "a")
-    assert env.sm.state is State.LOGIN_PIN
-    assert "Wrong PIN" in env.sm.error_text
-    assert env.sm.pin_digits == [0, 0, 0, 0]
+    env.sm.handle(ScanEvent("OP:picker01"))
+    press(env.sm, "b")
+    assert env.sm.state is State.LOGIN_BADGE
+    assert env.sm.badge_username == ""
 
 
 def test_logout_via_start_hold(env):
@@ -88,20 +112,29 @@ def test_logout_via_start_hold(env):
     assert env.sm.session is None
 
 
+def test_logout_blocked_while_queue_pending(env):
+    scan_to_quantity(env)
+    env.wms.offline = True
+    press(env.sm, "a")  # confirm queues
+    assert env.queue.pending_count() == 1
+    press(env.sm, "start", action="hold")
+    assert env.sm.session is not None  # still logged in
+    assert "cannot log out" in env.sm.error_text.lower()
+
+
 # -- picking workflow (HHT-TC-03x) ---------------------------------------------
 
 def test_happy_path_full_pick(env):
     scan_to_quantity(env)
-    assert env.sm.qty == 3  # prefilled with requested qty
+    assert env.sm.qty == 3  # prefilled with the requested quantity
     press(env.sm, "a")
     assert env.sm.state is State.CONFIRMED
-    assert env.queue.pending_count() == 1
+    assert env.queue.pending_count() == 1  # confirm is always queued
 
-    env.queue.flush(env.wms)
+    drain(env)
     assert env.queue.pending_count() == 0
-    conf = env.wms.confirmed[0]
-    assert (conf.qty_picked, conf.short_pick) == (3, False)
-    assert conf.location_code == TASK1_LOC
+    task_id, _, qty = env.wms.confirmed[0]
+    assert (task_id, qty) == (101, 3)
 
     env.clock.t += 5  # confirmation banner times out back to IDLE
     env.sm.handle(TickEvent())
@@ -109,18 +142,25 @@ def test_happy_path_full_pick(env):
     assert env.sm.task is None
 
 
+def test_online_scans_reach_the_server(env):
+    scan_to_quantity(env)
+    # both scans were delivered live: the server task is ARTICLE_CONFIRMED
+    assert env.wms._find(101).state == "ARTICLE_CONFIRMED"
+    assert env.queue.pending_count() == 0
+
+
 def test_semantic_sound_cues_follow_workflow_outcomes(env):
-    env.sm.handle(TickEvent())
-    env.sm.handle(ScanEvent("OP:1001"))
+    login(env)
     press(env.sm, "a")
     env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}"))
-    env.sm.handle(ScanEvent("ART:0000000000000"))
+    env.sm.handle(ScanEvent("ART:WRONG-SKU"))
     env.sm.handle(ScanEvent(f"ART:{TASK1_ART}"))
     press(env.sm, "a")
 
     assert env.sounds == [
-        SoundCue.READY,
-        SoundCue.BADGE_ACCEPTED,
+        SoundCue.READY,           # startup done
+        SoundCue.BADGE_ACCEPTED,  # badge read
+        SoundCue.READY,           # login ok
         SoundCue.LOCATION_ACCEPTED,
         SoundCue.ERROR,
         SoundCue.ARTICLE_ACCEPTED,
@@ -143,11 +183,12 @@ def test_sound_adapter_failure_does_not_break_workflow(env):
     assert env.sm.state is State.LOGIN_BADGE
 
 
-def test_wrong_location_rejected(env):
+def test_wrong_location_rejected_locally(env):
     start_task(env)
     env.sm.handle(ScanEvent("LOC:Z-99-99"))
     assert env.sm.state is State.GOTO_LOCATION
     assert "WRONG LOCATION" in env.sm.error_text
+    assert env.wms._find(101).state == "ASSIGNED"  # nothing reached the server
 
 
 def test_article_scan_in_location_state_hints(env):
@@ -160,50 +201,66 @@ def test_article_scan_in_location_state_hints(env):
 def test_wrong_article_rejected(env):
     start_task(env)
     env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}"))
-    env.sm.handle(ScanEvent("ART:0000000000000"))
+    env.sm.handle(ScanEvent("ART:WRONG-SKU"))
     assert env.sm.state is State.SCAN_ARTICLE
     assert "WRONG ARTICLE" in env.sm.error_text
 
 
-def test_bare_ean_accepted_as_article(env):
+def test_bare_ean_no_longer_accepted(env):
     start_task(env)
     env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}"))
-    env.sm.handle(ScanEvent(TASK1_ART))  # no ART: prefix, e.g. printed EAN barcode
-    assert env.sm.state is State.SET_QUANTITY
+    env.sm.handle(ScanEvent("8412345678905"))  # v1 payloads are exact ART:<sku>
+    assert env.sm.state is State.SCAN_ARTICLE
+    assert "article label" in env.sm.error_text.lower()
 
 
-def test_quantity_clamping(env):
+def test_count_can_exceed_requested_but_never_confirms(env):
     scan_to_quantity(env)
     press(env.sm, "up")
-    assert env.sm.qty == 3  # cannot exceed requested
-    for _ in range(10):
-        press(env.sm, "down")
-    assert env.sm.qty == 0  # cannot go negative
+    assert env.sm.qty == 4  # over-count must be enterable to be detectable
+    press(env.sm, "a")
+    assert env.sm.state is State.DISCREPANCY
+    assert env.queue.pending_count() == 0
 
 
-def test_short_pick_flagged(env):
+def test_short_count_goes_to_discrepancy_and_recount(env):
     scan_to_quantity(env)
     press(env.sm, "down")
     press(env.sm, "a")
-    env.queue.flush(env.wms)
-    conf = env.wms.confirmed[0]
-    assert (conf.qty_picked, conf.short_pick) == (2, True)
-
-
-def test_short_pick_blocked_when_disallowed(env):
-    env.cfg.workflow.allow_short_pick = False
-    scan_to_quantity(env)
-    press(env.sm, "down")
-    press(env.sm, "a")
+    assert env.sm.state is State.DISCREPANCY
+    press(env.sm, "b")  # recount resets to the requested quantity
     assert env.sm.state is State.SET_QUANTITY
-    assert "Short pick" in env.sm.error_text
+    assert env.sm.qty == 3
+    press(env.sm, "a")
+    assert env.sm.state is State.CONFIRMED
 
 
 def test_no_task_available(env):
-    env.wms._templates = []
+    env.wms._tasks = []
     login(env)
     press(env.sm, "a")
     assert env.sm.state is State.NO_TASK
+
+
+def test_fetch_resumes_mid_state_task(env):
+    login(env)
+    # the server already holds this task at LOCATION_CONFIRMED for us
+    env.wms.next_task()
+    env.wms.scan_location(101, f"LOC:{TASK1_LOC}")
+    press(env.sm, "a")
+    assert env.sm.state is State.SCAN_ARTICLE  # resumed, not restarted
+
+
+def test_fetch_refused_while_sync_pending(env):
+    scan_to_quantity(env)
+    env.wms.offline = True
+    press(env.sm, "a")  # confirm queues
+    env.clock.t += 5
+    env.sm.handle(TickEvent())  # banner timeout -> IDLE
+    assert env.sm.state is State.IDLE
+    press(env.sm, "a")  # try to claim the next task
+    assert env.sm.state is State.IDLE
+    assert "Sync pending" in env.sm.error_text
 
 
 def test_status_overlay_swallows_buttons(env):
@@ -218,27 +275,89 @@ def test_status_overlay_swallows_buttons(env):
 
 # -- offline behaviour (HHT-TC-04x) ---------------------------------------------
 
-def test_offline_confirm_queues_and_recovers(env):
+def test_offline_pick_queues_ordered_chain_and_replays(env):
+    start_task(env)
+    env.wms.offline = True
+    env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}"))  # local validation, queued
+    assert env.sm.state is State.SCAN_ARTICLE
+    env.sm.handle(ScanEvent(f"ART:{TASK1_ART}"))
+    assert env.sm.state is State.SET_QUANTITY
+    press(env.sm, "a")
+    assert env.sm.state is State.CONFIRMED  # operator never blocked
+    assert env.queue.pending_count() == 3
+
+    assert drain(env).sent == 0  # still offline
+    env.wms.offline = False
+    result = drain(env)
+    assert result.sent == 3  # FIFO: scan-loc, scan-art, confirm
+    assert env.wms._find(101).state == "COMPLETED"
+
+
+def test_scans_stay_queued_once_chain_started(env):
+    """Order preservation: after an offline scan, later ops must queue too,
+    even if connectivity returns before the queue has drained."""
+    start_task(env)
+    env.wms.offline = True
+    env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}"))
+    env.wms.offline = False  # WiFi back, but scan-location not yet replayed
+    env.sm.handle(ScanEvent(f"ART:{TASK1_ART}"))
+    assert env.queue.pending_count() == 2  # article queued behind location
+    assert drain(env).sent == 2
+
+
+def test_replay_rejection_surfaces_sync_failed(env):
+    start_task(env)
+    env.wms.offline = True
+    env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}"))
+    env.sm.handle(ScanEvent(f"ART:{TASK1_ART}"))
+    press(env.sm, "a")
+    env.wms.block_current_task()  # admin blocked it while we were offline
+    env.wms.offline = False
+    result = drain(env)
+    assert result.failed_code == "INVALID_TASK_STATE"
+    env.sm.handle(SyncFailedEvent(result.failed_task_id, result.failed_code))
+    assert env.sm.state is State.SYNC_FAILED
+    assert env.queue.dead_count() == 3
+    press(env.sm, "a")  # acknowledge
+    assert env.sm.state is State.IDLE
+    assert env.queue.dead_count() == 0
+
+
+def test_live_scan_rejected_by_server_drops_task(env):
+    start_task(env)
+    env.wms.block_current_task()  # blocked while the operator walks the aisle
+    env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}"))
+    assert env.sm.state is State.IDLE
+    assert env.sm.task is None
+    assert "INVALID_TASK_STATE" in env.sm.error_text
+
+
+def test_auth_required_drops_to_login_and_keeps_queue(env):
     scan_to_quantity(env)
     env.wms.offline = True
     press(env.sm, "a")
-    assert env.sm.state is State.CONFIRMED  # workflow never blocks on the network
     assert env.queue.pending_count() == 1
+    env.sm.handle(AuthRequiredEvent())
+    assert env.sm.state is State.LOGIN_BADGE
+    assert env.sm.session is None
+    assert env.queue.pending_count() == 1  # queue kept for replay after re-login
 
-    assert env.queue.flush(env.wms) == 0  # still offline: nothing delivered
-    assert env.queue.pending_count() == 1
 
-    env.wms.offline = False
-    assert env.queue.flush(env.wms) == 1
-    assert env.queue.pending_count() == 0
-    assert len(env.wms.confirmed) == 1
+def test_expired_token_on_live_call_drops_to_login(env):
+    start_task(env)
+    env.wms.expire_token()
+    env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}"))
+    assert env.sm.state is State.LOGIN_BADGE
+    assert "expired" in env.sm.error_text.lower()
 
 
 def test_wms_down_at_login_shows_error(env):
     env.wms.offline = True
     env.sm.handle(TickEvent())
-    env.sm.handle(ScanEvent("OP:1001"))
-    assert env.sm.state is State.LOGIN_BADGE
+    env.sm.handle(ScanEvent("OP:picker01"))
+    env.sm.pin_digits = [1, 2, 3, 4]
+    press(env.sm, "a")
+    assert env.sm.state is State.LOGIN_PIN
     assert "unreachable" in env.sm.error_text.lower()
     assert env.sm.online is False
 

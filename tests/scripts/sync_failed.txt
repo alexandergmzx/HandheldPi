@@ -1,0 +1,30 @@
+# HHT-TC-045 — replay rejection: the task was admin-blocked while the device
+# was offline, so the replayed chain is refused, dead-lettered for audit, and
+# the operator gets an explicit SYNC_FAILED screen. Recovery is administrative
+# (WMS dashboard: resume task / adjust stock).
+reset_queue
+tick
+scan OP:picker01
+pin 1234
+press a
+expect_state IDLE
+press a
+expect_state GOTO_LOCATION
+
+wms offline
+scan LOC:A-01-03
+scan ART:ART-SHIRT
+press a
+expect_state CONFIRMED
+expect_queue 3
+
+wms block_task                  # supervisor blocks the task meanwhile
+wms online
+flush                           # replay is rejected: INVALID_TASK_STATE
+expect_state SYNC_FAILED
+expect_queue 0
+expect_dead 3                   # whole chain parked, nothing silently dropped
+
+press a                         # operator acknowledges
+expect_dead 0
+expect_state IDLE

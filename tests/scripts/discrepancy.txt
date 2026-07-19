@@ -1,0 +1,31 @@
+# HHT-TC-037 — count mismatch: the WMS only accepts the exact task quantity,
+# so a short or over count never confirms; the operator recounts or calls the
+# supervisor. No confirm request is sent or queued.
+reset_queue
+tick
+scan OP:picker01
+pin 1234
+press a
+expect_state IDLE
+press a
+scan LOC:A-01-03
+scan ART:ART-SHIRT
+expect_state SET_QUANTITY
+
+press down                      # counted 2 of 3 (short)
+press a
+expect_state DISCREPANCY
+expect_queue 0                  # nothing sent, nothing queued
+
+press b                         # recount (resets to the requested quantity)
+expect_state SET_QUANTITY
+press up                        # counted 4 of 3 (over)
+press a
+expect_state DISCREPANCY
+expect_queue 0
+
+press b
+press a                         # exact count confirms
+expect_sound confirmed
+expect_state CONFIRMED
+expect_queue 1

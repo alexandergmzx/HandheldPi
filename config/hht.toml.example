@@ -2,13 +2,13 @@
 # Every deployment-specific value lives here; the code hardcodes nothing.
 
 [device]
-id = "HHT-001"          # unique per unit — set during provisioning
-site = "MAD-01"
+id = "HHT-PI-01"        # must match a registered, active device_code in the WMS
+site = "MAD-01"         # `device` table (uppercase). Seeded dev device: HHT-PI-01.
 
 [wms]
 backend = "http"        # http | mock
-base_url = "http://192.168.1.50:8080"
-timeout_s = 5.0         # per-request timeout
+base_url = "http://192.168.1.50:8080"  # WMS LAN address; see the WMS runbooks
+timeout_s = 5.0         # per-request timeout                (docs/runbook-*.md §3-4)
 retry_interval_s = 30.0 # offline-queue retry / connectivity probe period
 
 [scanner]
@@ -54,8 +54,7 @@ r = 6
 
 [workflow]
 error_banner_s = 2.5    # error / confirmation banner display time
-allow_short_pick = true # allow confirming qty < requested
-pin_length = 4
+pin_length = 4          # must equal the picker account's numeric password length
 
 [logging]
 file = "/var/log/hht/hht.jsonl"  # JSON-lines, one event per line
@@ -64,8 +63,8 @@ max_bytes = 1048576
 backup_count = 5
 
 [queue]
-db_path = "/var/lib/hht/queue.db" # persistent offline confirmation queue (sqlite)
+db_path = "/var/lib/hht/queue.db" # persistent offline operation queue (sqlite)
 
 [mock]                  # only used when wms.backend = "mock"
 tasks_file = ""         # optional JSON fixture; empty = built-in sample tasks
-operators = ["1001:Alice:1234", "1002:Bob:5678"]  # id:name:pin
+operators = ["picker01:Picker One:1234", "picker02:Picker Two:5678"]  # username:name:pin

@@ -63,8 +63,7 @@ class AudioCfg:
 @dataclass
 class WorkflowCfg:
     error_banner_s: float = 2.5
-    allow_short_pick: bool = True
-    pin_length: int = 4
+    pin_length: int = 4  # must equal the picker account's numeric password length
 
 
 @dataclass
@@ -83,7 +82,7 @@ class QueueCfg:
 @dataclass
 class MockCfg:
     tasks_file: str = ""
-    operators: list[str] = field(default_factory=lambda: ["1001:Alice:1234"])
+    operators: list[str] = field(default_factory=lambda: ["picker01:Picker One:1234"])
 
 
 @dataclass

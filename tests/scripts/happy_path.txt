@@ -1,20 +1,37 @@
-# HHT-TC-030 — full pick cycle: badge login, task, location, article, confirm
+# HHT-TC-030 — full pick cycle: badge + PIN login, task, location, article,
+# exact count, confirm. PIN 1234 entered button by button (the only script
+# that exercises the raw entry path; others use the `pin` shortcut).
 reset_queue
 tick
 expect_sound ready
 expect_state LOGIN_BADGE
-scan OP:1001
+scan OP:picker01
 expect_sound badge_accepted
+expect_state LOGIN_PIN
+press up                        # digit 1 -> 1
+press right
+press up                        # digit 2 -> 1
+press up                        #            2
+press right
+press up                        # digit 3 -> 1
+press up
+press up                        #            3
+press right
+press up                        # digit 4 -> 1
+press up
+press up
+press up                        #            4
+press a                         # login picker01 / 1234
 expect_state IDLE
 press a
 expect_state GOTO_LOCATION
 scan LOC:A-01-03
 expect_sound location_accepted
 expect_state SCAN_ARTICLE
-scan ART:8412345678905
+scan ART:ART-SHIRT
 expect_sound article_accepted
 expect_state SET_QUANTITY
-press a
+press a                         # count == requested (3)
 expect_sound confirmed
 expect_state CONFIRMED
 flush

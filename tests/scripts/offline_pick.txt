@@ -1,23 +1,36 @@
-# HHT-TC-040 — WiFi loss: confirmation queues offline, re-sends on reconnect
+# HHT-TC-040 — WiFi loss mid-task (Level 2 store-and-forward): the claimed
+# task finishes on local validation, the ordered op chain queues, and replays
+# FIFO once the WMS is reachable again. Claiming itself always needs the WMS.
 reset_queue
 tick
-scan OP:1001
+scan OP:picker01
+pin 1234
 press a
-scan LOC:A-01-03
-scan ART:8412345678905
-expect_state SET_QUANTITY
+expect_state IDLE
+press a                         # claim happens online
+expect_state GOTO_LOCATION
 
 wms offline                     # pull the plug mid-task
 expect_sound offline
-press down                      # short pick: 2 of 3
-press a
-expect_sound confirmed
-expect_state CONFIRMED          # operator is never blocked by the network
+scan LOC:A-01-03                # validated locally, queued
+expect_sound location_accepted
+expect_state SCAN_ARTICLE
 expect_queue 1
+scan ART:ART-SHIRT
+expect_sound article_accepted
+expect_state SET_QUANTITY
+expect_queue 2
+press a                         # exact count — operator is never blocked
+expect_sound confirmed
+expect_state CONFIRMED
+expect_queue 3
 
 flush                           # delivery attempt while still offline
-expect_queue 1                  # nothing lost, nothing sent
+expect_queue 3                  # nothing lost, nothing sent
 
 wms online                      # WiFi back
-flush
-expect_queue 0                  # queue drained
+flush                           # FIFO replay: scan-loc, scan-art, confirm
+expect_queue 0
+expect_dead 0
+wait 3
+expect_state IDLE

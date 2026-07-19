@@ -1,7 +1,11 @@
-# HHT-TC-032/033 — wrong scans are rejected with an error, workflow stays put
+# HHT-TC-032/033 — wrong scans are rejected with an error, workflow stays put.
+# Bare EANs (no ART: prefix) are no longer accepted: v1 QR payloads are exact.
 reset_queue
 tick
-scan OP:1001
+scan OP:picker01
+pin 1234
+press a
+expect_state IDLE
 press a
 expect_state GOTO_LOCATION
 
@@ -10,7 +14,7 @@ expect_sound error
 expect_error WRONG LOCATION
 expect_state GOTO_LOCATION
 
-scan ART:8412345678905          # right article, wrong moment
+scan ART:ART-SHIRT              # right article, wrong moment
 expect_sound error
 expect_error LOCATION first
 expect_state GOTO_LOCATION
@@ -20,11 +24,16 @@ expect_no_error
 scan LOC:A-01-03
 expect_sound location_accepted
 expect_state SCAN_ARTICLE
-scan ART:0000000000000
+scan ART:WRONG-SKU
 expect_sound error
 expect_error WRONG ARTICLE
 expect_state SCAN_ARTICLE
 
-scan 8412345678905              # bare EAN (no ART: prefix) must also work
+scan 8412345678905              # bare EAN: not a valid v1 payload
+expect_sound error
+expect_error article label
+expect_state SCAN_ARTICLE
+
+scan ART:ART-SHIRT
 expect_sound article_accepted
 expect_state SET_QUANTITY

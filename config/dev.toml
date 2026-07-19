@@ -29,7 +29,6 @@ backend = "none"        # semantic cues are still exercised by unit/script tests
 
 [workflow]
 error_banner_s = 2.5
-allow_short_pick = true
 pin_length = 4
 
 [logging]
@@ -42,4 +41,4 @@ backup_count = 2
 db_path = "var/dev-queue.db"
 
 [mock]
-operators = ["1001:Alice:1234", "1002:Bob:5678"]
+operators = ["picker01:Picker One:1234", "picker02:Picker Two:5678"]  # username:name:pin

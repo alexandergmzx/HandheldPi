@@ -1,0 +1,34 @@
+# HHT-TC-046 — token expiry with queued work: replay pauses (never
+# dead-letters on auth), the operator re-logs in, and the queue drains under
+# the fresh token.
+reset_queue
+tick
+scan OP:picker01
+pin 1234
+press a
+expect_state IDLE
+press a
+expect_state GOTO_LOCATION
+
+wms offline
+scan LOC:A-01-03
+scan ART:ART-SHIRT
+press a
+expect_state CONFIRMED
+expect_queue 3
+
+wms online
+wms expire_token                # 8h TTL ran out while we were offline
+flush
+expect_state LOGIN_BADGE        # session expired -> back to login
+expect_error Session expired
+expect_queue 3                  # queue kept intact
+expect_dead 0
+
+scan OP:picker01
+pin 1234
+press a                         # re-login
+expect_state IDLE
+flush                           # replay resumes under the fresh token
+expect_queue 0
+expect_dead 0

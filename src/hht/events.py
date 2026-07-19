@@ -51,8 +51,24 @@ class QueueDepthEvent:
 
 
 @dataclass(frozen=True)
+class SyncFailedEvent:
+    """A replayed op was rejected by the WMS; its task chain is dead-lettered."""
+
+    task_id: int
+    code: str
+
+
+@dataclass(frozen=True)
+class AuthRequiredEvent:
+    """The bearer token is no longer valid; re-login needed, queue kept."""
+
+
+@dataclass(frozen=True)
 class QuitEvent:
     pass
 
 
-Event = ButtonEvent | ScanEvent | TickEvent | NetStatusEvent | QueueDepthEvent | QuitEvent
+Event = (
+    ButtonEvent | ScanEvent | TickEvent | NetStatusEvent | QueueDepthEvent
+    | SyncFailedEvent | AuthRequiredEvent | QuitEvent
+)

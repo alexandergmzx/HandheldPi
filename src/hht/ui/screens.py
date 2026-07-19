@@ -41,14 +41,16 @@ def _center(d: ImageDraw.ImageDraw, text: str, y: int, size: int, fill=FG) -> No
 
 
 _HINTS = {
-    State.LOGIN_BADGE: "[X] PIN login",
+    State.LOGIN_BADGE: "scan badge to log in",
     State.LOGIN_PIN: "[^v<>] digits   [A] OK   [B] back",
     State.IDLE: "[A] next task   [SEL] status",
     State.NO_TASK: "[A] retry   [B] back",
     State.GOTO_LOCATION: "scan location label",
     State.SCAN_ARTICLE: "scan article   [B] back",
-    State.SET_QUANTITY: "[^v] qty   [A] confirm   [B] back",
+    State.SET_QUANTITY: "[^v] count   [A] confirm   [B] back",
+    State.DISCREPANCY: "[B] recount",
     State.CONFIRMED: "[A] continue",
+    State.SYNC_FAILED: "[A] acknowledge",
 }
 
 
@@ -59,7 +61,7 @@ def render(sm: PickingStateMachine) -> Image.Image:
 
     # header
     d.rectangle((0, 0, w, 22), fill=BAR)
-    who = sm.session.operator_name if sm.session else "-"
+    who = sm.session.display_name if sm.session else "-"
     d.text((6, 11), f"{sm.cfg.device.id}  {who}", font=_font(13), fill=FG, anchor="lm")
     right = []
     if sm.queue_depth:
@@ -92,7 +94,7 @@ def _body_status(d, sm: PickingStateMachine) -> None:
     _center(d, "STATUS", 42, 16, DIM)
     lines = [
         ("Device", f"{sm.cfg.device.id} @ {sm.cfg.device.site or '-'}"),
-        ("Operator", sm.session.operator_id if sm.session else "-"),
+        ("Operator", sm.session.username if sm.session else "-"),
         ("WMS", sm.cfg.wms.base_url),
         ("Link", "ONLINE" if sm.online else "OFFLINE"),
         ("Queue", f"{sm.queue_depth} pending"),
@@ -116,7 +118,7 @@ def _body_login_badge(d, sm) -> None:
 
 
 def _body_login_pin(d, sm) -> None:
-    _center(d, "ENTER PIN", 60, 20)
+    _center(d, f"PIN — {sm.badge_username}", 60, 20)
     n = len(sm.pin_digits)
     box_w, gap = 34, 10
     x0 = (SCREEN_SIZE[0] - n * box_w - (n - 1) * gap) // 2
@@ -129,7 +131,7 @@ def _body_login_pin(d, sm) -> None:
 
 def _body_idle(d, sm) -> None:
     _center(d, "READY", 90, 30, OK)
-    name = sm.session.operator_name if sm.session else ""
+    name = sm.session.display_name if sm.session else ""
     _center(d, name, 130, 17, DIM)
 
 
@@ -143,7 +145,7 @@ def _body_goto_location(d, sm) -> None:
     _center(d, "GO TO", 45, 15, DIM)
     _center(d, t.location_code, 90, 42, ACCENT)
     _center(d, f"{t.article.description}", 140, 15)
-    _center(d, f"qty {t.qty_requested}", 165, 15, DIM)
+    _center(d, f"qty {t.quantity}", 165, 15, DIM)
 
 
 def _body_scan_article(d, sm) -> None:
@@ -152,24 +154,45 @@ def _body_scan_article(d, sm) -> None:
     _center(d, "PICK", 70, 15, DIM)
     _center(d, t.article.sku, 100, 28)
     _center(d, t.article.description, 132, 15, DIM)
-    _center(d, f"qty {t.qty_requested}", 165, 18, ACCENT)
+    _center(d, f"qty {t.quantity}", 165, 18, ACCENT)
 
 
 def _body_set_quantity(d, sm) -> None:
     t = sm.task
-    _center(d, "QUANTITY", 45, 15, DIM)
+    _center(d, "COUNT", 45, 15, DIM)
     _center(d, str(sm.qty), 105, 56, ACCENT)
-    _center(d, f"of {t.qty_requested} requested", 150, 15, DIM)
-    if sm.qty < t.qty_requested:
-        _center(d, "SHORT PICK", 175, 15, ERR)
+    _center(d, f"of {t.quantity} requested", 150, 15, DIM)
+    if sm.qty != t.quantity:
+        _center(d, "COUNT MISMATCH", 175, 15, ERR)
+
+
+def _body_discrepancy(d, sm) -> None:
+    t = sm.task
+    _center(d, "COUNT MISMATCH", 60, 22, ERR)
+    if t:
+        _center(d, f"counted {sm.qty} of {t.quantity}", 105, 18)
+    _center(d, "call supervisor", 140, 16, ACCENT)
+    _center(d, "only the exact quantity can confirm", 168, 13, DIM)
 
 
 def _body_confirmed(d, sm) -> None:
     _center(d, "PICK OK ✓", 95, 32, OK)
     if sm.task:
         _center(d, f"{sm.qty} x {sm.task.article.sku}", 135, 17)
-    if not sm.online:
+    if sm.queue_depth:
         _center(d, "stored offline — will sync", 165, 14, ACCENT)
+    else:
+        _center(d, "synced ✓", 165, 14, OK)
+
+
+def _body_sync_failed(d, sm) -> None:
+    _center(d, "SYNC FAILED", 60, 26, ERR)
+    if sm.sync_failed:
+        task_id, code = sm.sync_failed
+        _center(d, f"task {task_id}", 100, 17)
+        _center(d, code, 125, 15, ACCENT)
+    _center(d, "see supervisor", 155, 16, ACCENT)
+    _center(d, "pick not booked — kept for audit", 180, 13, DIM)
 
 
 _BODY = {
@@ -181,5 +204,7 @@ _BODY = {
     State.GOTO_LOCATION: _body_goto_location,
     State.SCAN_ARTICLE: _body_scan_article,
     State.SET_QUANTITY: _body_set_quantity,
+    State.DISCREPANCY: _body_discrepancy,
     State.CONFIRMED: _body_confirmed,
+    State.SYNC_FAILED: _body_sync_failed,
 }

@@ -10,7 +10,7 @@ REPO = Path(__file__).resolve().parent.parent
 
 def test_example_config_loads():
     cfg = load_config(REPO / "config" / "hht.toml.example")
-    assert cfg.device.id == "HHT-001"
+    assert cfg.device.id == "HHT-PI-01"  # the WMS-registered device_code
     assert cfg.wms.backend == "http"
     assert cfg.input.backend == "gpio"
     assert len(cfg.input.pins) == 12
