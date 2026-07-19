@@ -67,10 +67,11 @@ class CameraScanner:
             for symbol in decode(gray):
                 payload = symbol.data.decode("utf-8", errors="replace")
                 if self._debounced(payload):
+                    latency_ms = round((time.monotonic() - t0) * 1000)
                     evt(log, "scan_decoded", payload=payload,
-                        symbology=symbol.type,
-                        latency_ms=round((time.monotonic() - t0) * 1000))
-                    emit(ScanEvent(payload, symbology=symbol.type))
+                        symbology=symbol.type, latency_ms=latency_ms)
+                    emit(ScanEvent(payload, symbology=symbol.type,
+                                   latency_ms=latency_ms))
 
     def _debounced(self, payload: str) -> bool:
         """True if this payload should fire. Identical payloads are suppressed while

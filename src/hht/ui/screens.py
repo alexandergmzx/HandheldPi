@@ -3,7 +3,7 @@ this is read at arm's length on a 2-inch panel in a warehouse aisle."""
 
 from __future__ import annotations
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from ..state_machine import PickingStateMachine, State
 from . import SCREEN_SIZE
@@ -77,17 +77,32 @@ def render(sm: PickingStateMachine) -> Image.Image:
     else:
         _BODY[sm.state](d, sm)
 
-    # footer: hints, overridden by the error banner
+    # footer: error banner wins, then a transient last-scan line, then the hint
     err = sm.error_text
+    fb = sm.scan_feedback
     if err:
         d.rectangle((0, h - 34, w, h), fill=ERR)
         _center(d, err[:34], h - 17, 15, FG)
+    elif fb is not None:
+        d.rectangle((0, h - 22, w, h), fill=BAR)
+        _center(d, _scan_line(fb), h - 11, 12, OK)
     else:
         hint = _HINTS.get(sm.state, "")
         if hint:
             d.rectangle((0, h - 22, w, h), fill=BAR)
             _center(d, hint, h - 11, 12, DIM)
+
+    if sm.invert_active:  # accept flash: unmistakable even without sound
+        img = ImageOps.invert(img)
     return img
+
+
+def _scan_line(scan) -> str:
+    """One-line decode readout: 'LOC:A-01-03 · QRCODE · 88ms'."""
+    parts = [scan.payload, scan.symbology]
+    if scan.latency_ms is not None:
+        parts.append(f"{scan.latency_ms}ms")
+    return "  ·  ".join(parts)[:40]
 
 
 def _body_status(d, sm: PickingStateMachine) -> None:
@@ -98,6 +113,7 @@ def _body_status(d, sm: PickingStateMachine) -> None:
         ("WMS", sm.cfg.wms.base_url),
         ("Link", "ONLINE" if sm.online else "OFFLINE"),
         ("Queue", f"{sm.queue_depth} pending"),
+        ("Last scan", _scan_line(sm.last_scan) if sm.last_scan else "-"),
         ("Version", sm.version),
     ]
     y = 68

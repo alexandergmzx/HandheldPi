@@ -369,3 +369,57 @@ def test_error_banner_expires(env):
     env.clock.t += env.cfg.workflow.error_banner_s + 0.1
     env.sm.handle(TickEvent())
     assert env.sm.error_text is None
+
+
+# -- scan feedback + accept flash (HHT-TC-01x) --------------------------------
+
+def test_scan_feedback_records_last_decode(env):
+    start_task(env)
+    env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}", symbology="QRCODE", latency_ms=88))
+    fb = env.sm.scan_feedback
+    assert fb is not None
+    assert fb.payload == f"LOC:{TASK1_LOC}"
+    assert fb.symbology == "QRCODE"
+    assert fb.latency_ms == 88
+
+
+def test_scan_feedback_dwell_expires(env):
+    start_task(env)
+    env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}"))
+    assert env.sm.scan_feedback is not None
+    env.clock.t += env.cfg.scanner.feedback_s + 0.1
+    assert env.sm.scan_feedback is None
+    assert env.sm.last_scan is not None  # retained for the status overlay
+
+
+def test_rejected_scan_still_shows_in_feedback(env):
+    start_task(env)
+    env.sm.handle(ScanEvent("LOC:Z-99-99"))  # wrong location, rejected
+    assert env.sm.error_text
+    assert env.sm.scan_feedback is not None
+    assert env.sm.scan_feedback.payload == "LOC:Z-99-99"
+
+
+def test_accept_flash_fires_on_accepted_scan_and_expires(env):
+    start_task(env)
+    env.clock.t += env.cfg.scanner.accept_flash_s + 0.01  # clear the login flash
+    assert env.sm.invert_active is False
+    env.sm.handle(ScanEvent(f"LOC:{TASK1_LOC}"))
+    assert env.sm.state is State.SCAN_ARTICLE
+    assert env.sm.invert_active is True
+    env.clock.t += env.cfg.scanner.accept_flash_s + 0.01
+    assert env.sm.invert_active is False
+
+
+def test_rejected_scan_does_not_flash(env):
+    start_task(env)
+    env.clock.t += env.cfg.scanner.accept_flash_s + 0.01  # clear the login flash
+    env.sm.handle(ScanEvent("LOC:Z-99-99"))
+    assert env.sm.invert_active is False
+
+
+def test_badge_scan_flashes(env):
+    env.sm.handle(TickEvent())
+    env.sm.handle(ScanEvent("OP:picker01"))
+    assert env.sm.state is State.LOGIN_PIN
+    assert env.sm.invert_active is True

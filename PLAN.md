@@ -240,8 +240,9 @@ Exit criteria: point at QR → decoded payload on LCD < 500 ms typical, no dupli
       2026-07-12)*
 - [x] Semantic sound feedback: distinct non-blocking cues for accepted badge/location/
       article, rejection, offline transition, ready, and confirmation; silent test backend.
-- [ ] On-screen feedback: last code, symbology, decode latency; invert screen 100 ms on
-      accept as an accessibility/fallback equivalent to sound.
+- [x] On-screen feedback: transient last code / symbology / decode-latency line plus a
+      100 ms screen-invert flash on accept (accessibility/fallback equivalent to sound);
+      last decode also shown on the status overlay. *(2026-07-18, off-device)*
 - [ ] Measure and record decode latency + CPU on Zero 2 W (goes in test report). *(latency
       measured 2026-07-12: 73–102 ms; CPU/formal test-report entry still open)*
 - [ ] Test cases HHT-TC-01x (on device, see docs/TEST_SPECIFICATION.md).

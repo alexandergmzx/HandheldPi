@@ -104,6 +104,9 @@ class PickingStateMachine:
         self.version = __version__
         self._error: tuple[str, float] | None = None
         self._confirm_until = 0.0
+        self.last_scan: ScanEvent | None = None
+        self._scan_feedback_until = 0.0
+        self._invert_until = 0.0
 
     # -- rendering helpers --------------------------------------------------
 
@@ -113,6 +116,18 @@ class PickingStateMachine:
             return self._error[0]
         return None
 
+    @property
+    def scan_feedback(self) -> ScanEvent | None:
+        """The most recent decode, while its on-screen dwell window is open."""
+        if self.last_scan and self.now() < self._scan_feedback_until:
+            return self.last_scan
+        return None
+
+    @property
+    def invert_active(self) -> bool:
+        """True during the accept flash — the visual equivalent of the accept cue."""
+        return self.now() < self._invert_until
+
     # -- internals ----------------------------------------------------------
 
     def _set_error(self, msg: str) -> None:
@@ -120,6 +135,11 @@ class PickingStateMachine:
         evt(log, "workflow_error", _level=logging.WARNING,
             state=self.state.value, message=msg)
         self._sound(SoundCue.ERROR)
+
+    def _accept_flash(self) -> None:
+        """Invert the screen briefly on an accepted scan (accessibility fallback
+        to the accept sound cue). Rendered by the render path, cleared by the tick."""
+        self._invert_until = self.now() + self.cfg.scanner.accept_flash_s
 
     def _sound(self, cue: SoundCue) -> None:
         """Emit a semantic cue without letting an output failure affect workflow."""
@@ -267,6 +287,10 @@ class PickingStateMachine:
     # -- event handling -------------------------------------------------------
 
     def handle(self, event: Event) -> None:
+        if isinstance(event, ScanEvent):
+            # Record every decode (accepted or not) for the on-screen feedback line.
+            self.last_scan = event
+            self._scan_feedback_until = self.now() + self.cfg.scanner.feedback_s
         if isinstance(event, NetStatusEvent):
             if event.online != self.online:
                 evt(log, "net_status", online=event.online)
@@ -329,6 +353,7 @@ class PickingStateMachine:
         evt(log, "badge_scanned", username=username)
         self._goto(State.LOGIN_PIN, "badge_scanned")
         self._sound(SoundCue.BADGE_ACCEPTED)
+        self._accept_flash()
 
     def _in_login_pin(self, event: Event) -> None:
         if not isinstance(event, ButtonEvent):
@@ -383,6 +408,7 @@ class PickingStateMachine:
             evt(log, "scan_accepted", scan_type="location", code=code)
             self._goto(State.SCAN_ARTICLE, "location_ok")
             self._sound(SoundCue.LOCATION_ACCEPTED)
+            self._accept_flash()
 
     def _in_scan_article(self, event: Event) -> None:
         assert self.task is not None
@@ -408,6 +434,7 @@ class PickingStateMachine:
             self.qty = self.task.quantity
             self._goto(State.SET_QUANTITY, "article_ok")
             self._sound(SoundCue.ARTICLE_ACCEPTED)
+            self._accept_flash()
 
     def _in_set_quantity(self, event: Event) -> None:
         assert self.task is not None

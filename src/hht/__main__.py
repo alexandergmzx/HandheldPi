@@ -81,8 +81,10 @@ def _run_interactive(cfg) -> int:
 
     try:
         while True:
+            # Wake sooner while an accept flash is showing so it clears on time.
+            timeout = 0.05 if sm.invert_active else 0.5
             try:
-                event = events.get(timeout=0.5)
+                event = events.get(timeout=timeout)
             except queue_mod.Empty:
                 event = TickEvent()
             if isinstance(event, QuitEvent):

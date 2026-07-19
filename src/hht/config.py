@@ -34,6 +34,8 @@ class ScannerCfg:
     frame_size: tuple[int, int] = (640, 480)
     af_mode: str = "continuous"  # continuous | manual
     lens_position: float = 6.6
+    feedback_s: float = 1.5     # how long the last-decode line stays on screen
+    accept_flash_s: float = 0.1  # screen-invert flash on an accepted scan
 
 
 @dataclass

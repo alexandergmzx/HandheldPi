@@ -32,6 +32,7 @@ class ButtonEvent:
 class ScanEvent:
     payload: str
     symbology: str = "QRCODE"
+    latency_ms: int | None = None  # decode time; None from the scripted scanner
     at: float = field(default_factory=time.monotonic)
 
 

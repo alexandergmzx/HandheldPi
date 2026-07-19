@@ -17,6 +17,8 @@ debounce_s = 2.0        # suppress identical payload re-reads within this window
 frame_size = [640, 480] # lores decode stream
 af_mode = "continuous"  # continuous | manual  (Camera Module 3)
 lens_position = 6.6     # dioptres (~15 cm) when af_mode = "manual"
+feedback_s = 1.5        # dwell time of the on-screen last-decode readout line
+accept_flash_s = 0.1    # screen-invert flash on an accepted scan (silent-mode cue)
 
 [display]
 backend = "framebuffer" # framebuffer | console | image
