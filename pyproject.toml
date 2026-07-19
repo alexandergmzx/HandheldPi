@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "qrcode>=7"]  # qrcode: scripts/make_badge.py only, never on-device
 # Hardware-only deps come from apt, NOT pip (must match the system libcamera):
 #   python3-picamera2 (--no-install-recommends), python3-pyzbar,
 #   python3-gpiozero, python3-lgpio

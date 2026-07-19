@@ -1,0 +1,45 @@
+# Loopback end-to-end config — the real HTTP client against a real WMS dev
+# instance on this machine, everything else hardware-free:
+#   (warehouse-management) ./mvnw spring-boot:run     # dev profile, port 8080
+#   (HandheldPi)           python -m hht -c config/dev-http.toml
+# Log in with badge scan `:OP:picker02` and PIN 2468 (WMS dev seed, V1_2).
+
+[device]
+id = "HHT-DEV-01"       # dev loopback device registered by the WMS dev seed
+site = "DEV"
+
+[wms]
+backend = "http"
+base_url = "http://localhost:8080"
+timeout_s = 2.0
+retry_interval_s = 5.0
+
+[scanner]
+backend = "mock"
+
+[display]
+backend = "console"     # ANSI rendering in the terminal; try "image" for PNG dumps
+image_dir = "var/screens"
+
+[input]
+backend = "keyboard"
+hold_start_s = 1.5
+
+[audio]
+backend = "none"
+
+[workflow]
+error_banner_s = 2.5
+pin_length = 4          # picker02's password is the 4-digit PIN 2468
+
+[logging]
+file = "var/hht-dev-http.jsonl"
+level = "DEBUG"
+max_bytes = 1048576
+backup_count = 2
+
+[queue]
+db_path = "var/dev-http-queue.db"
+
+[mock]                  # unused with backend = "http"
+operators = ["picker01:Picker One:1234"]
