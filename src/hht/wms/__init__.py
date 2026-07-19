@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 from ..config import AppConfig
-from .base import WmsClient, WmsError, WmsRejected, WmsUnavailable
-from .models import Article, Confirmation, Session, Task
+from .base import WmsAuthError, WmsClient, WmsError, WmsRejected, WmsUnavailable
+from .models import (
+    Article,
+    ConfirmOutcome,
+    OpKind,
+    QueuedOp,
+    ScanOutcome,
+    Session,
+    Task,
+)
 
 __all__ = [
-    "Article", "Confirmation", "Session", "Task",
-    "WmsClient", "WmsError", "WmsRejected", "WmsUnavailable",
+    "Article", "ConfirmOutcome", "OpKind", "QueuedOp", "ScanOutcome",
+    "Session", "Task",
+    "WmsAuthError", "WmsClient", "WmsError", "WmsRejected", "WmsUnavailable",
     "make_wms_client",
 ]
 
