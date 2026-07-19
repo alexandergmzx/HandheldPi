@@ -26,10 +26,11 @@ unchanged — this Python terminal and its successor, warehouse-android's
 
 Concretely:
 
-- *Finish to demonstrable* = the open boxes below: Phase 0 leftovers (SPI clock
-  tuning, battery sanity, audio baseline, as-built column), Phase 1 scan-loop
-  polish, Phase 2 scripted-UI completion, the Phase 3 LAN e2e on HHT-001, and
-  Phase 4 (splash, idempotent install, log report, final docs + test report).
+- *Finish to demonstrable* = the open boxes below, now packaged as two on-device
+  manuals: the **dry run** (docs/DEVICE_DRY_RUN.md — Phase 0 leftovers, device
+  test cases, splash timing, no WMS needed) and the **hot run**
+  (docs/LAN_E2E_RUNBOOK.md — the Phase 3 LAN e2e), plus the Phase 4 remainder
+  (idempotent install, final docs + device test report).
 - *Freeze* = after that, maintenance only: keep the device green against the
   pinned WMS v1 contract. New picking features belong in `:app-picker`, not here.
 
@@ -209,6 +210,8 @@ QR at 15 cm, all documented in docs/DEVICE_CONFIGURATION.md with actual values.
       *(done 2026-07-12 after three fixes — see "Bring-up finding" above; MADCTL 0xA8
       confirmed visually: READY screen, correct orientation and colors)*
 - [ ] Push SPI clock: 48 → 64 → 80 MHz until artifacts, then back off one step. Record.
+      *(this and the three boxes below are packaged as the bench dry run —
+      docs/DEVICE_DRY_RUN.md §5)*
 - [x] Buttons: run `python -m hht.tools.buttontest` — press each key, verify GPIO map
       table above; correct config if Waveshare revision differs.
       *(done 2026-07-12: 12/12 correct on first try, no bounce, map as researched)*

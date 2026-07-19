@@ -1,0 +1,27 @@
+# TC-042 (power-loss durability) — PREP half, for the on-device dry run
+# (docs/DEVICE_DRY_RUN.md §6). Completes a pick while offline and exits
+# WITHOUT flushing: the ordered op chain (scan-location -> scan-article ->
+# confirm) stays in the sqlite queue on purpose. Hard power-cut the unit
+# right after this passes, boot, and verify the 3 ops survived.
+# (Under pytest this just proves the chain queues without delivery.)
+
+reset_queue
+tick
+scan OP:picker01
+pin 1234
+press a
+expect_state IDLE
+
+press a
+expect_state GOTO_LOCATION
+
+wms offline
+scan LOC:A-01-03
+expect_state SCAN_ARTICLE
+scan ART:ART-SHIRT
+expect_state SET_QUANTITY
+press a
+expect_state CONFIRMED
+expect_queue 3
+expect_dead 0
+# no flush — power-cut here; the queue must survive the cut

@@ -28,6 +28,16 @@ def test_dev_config_loads():
     assert cfg.audio.backend == "none"
 
 
+def test_device_dry_config_loads():
+    # Real hardware, mock WMS: the on-device dry run (docs/DEVICE_DRY_RUN.md).
+    cfg = load_config(REPO / "config" / "device-dry.toml")
+    assert cfg.wms.backend == "mock"
+    assert cfg.scanner.backend == "camera"
+    assert cfg.display.backend == "framebuffer"
+    assert cfg.input.backend == "gpio" and len(cfg.input.pins) == 12
+    assert cfg.queue.db_path.startswith("var/")  # never the service's queue db
+
+
 def test_missing_device_id(tmp_path):
     p = tmp_path / "bad.toml"
     p.write_text('[device]\nsite = "X"\n')

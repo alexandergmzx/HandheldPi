@@ -1,0 +1,69 @@
+# On-device DRY RUN — real hardware (panel, buttons, camera, speaker), NO WMS:
+# the mock backend serves the built-in tasks, so the full workflow runs on the
+# bench with the printed docs/img/test_qr_sheet.png labels.
+#
+#   sudo systemctl stop hht          # free the panel and the GPIOs first
+#   cd ~/Development/HandheldPi
+#   .venv/bin/python -m hht -c config/device-dry.toml
+#
+# Full procedure: docs/DEVICE_DRY_RUN.md. Login: badge OP:picker01, PIN 1234.
+# Paths are repo-relative (var/ is gitignored) so this never touches the
+# service's /var/lib/hht/queue.db or /var/log/hht/.
+
+[device]
+id = "HHT-001"
+site = "BENCH"
+
+[wms]
+backend = "mock"
+
+[scanner]
+backend = "camera"
+debounce_s = 2.0
+frame_size = [640, 480]
+af_mode = "continuous"
+
+[display]
+backend = "framebuffer"
+fb_device = "auto"
+
+[input]
+backend = "gpio"
+hold_start_s = 1.5
+
+[audio]
+backend = "alsa"
+device = "plughw:CARD=Headphones,DEV=0"
+sounds_dir = "assets/sounds"
+queue_size = 8
+
+# GamePi20 button map (verified 12/12 on HHT-001 2026-07-12).
+[input.pins]
+up = 12
+down = 20
+left = 21
+right = 13
+start = 26
+select = 16
+a = 23
+b = 4
+x = 22
+y = 17
+l = 5
+r = 6
+
+[workflow]
+error_banner_s = 2.5
+pin_length = 4
+
+[logging]
+file = "var/dry-run.jsonl"
+level = "INFO"
+max_bytes = 1048576
+backup_count = 2
+
+[queue]
+db_path = "var/dry-queue.db"
+
+[mock]
+operators = ["picker01:Picker One:1234", "picker02:Picker Two:5678"]

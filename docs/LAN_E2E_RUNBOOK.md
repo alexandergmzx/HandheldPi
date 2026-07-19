@@ -1,5 +1,9 @@
-# LAN End-to-End Runbook — HHT-001 against the live WMS
+# LAN End-to-End Runbook — HHT-001 against the live WMS (the "hot run")
 
+> The second of the two on-device manuals: run the **dry run**
+> ([DEVICE_DRY_RUN.md](DEVICE_DRY_RUN.md), no WMS needed) first — it closes every
+> device-only case so this round only has to prove the live integration.
+>
 > The on-device round that closes Phase 3. Everything here is prepared so the session
 > is mechanical once **HHT-001** and the **WMS host** are both on the warehouse LAN.
 > It is the physical-radio successor to the 2026-07-15 loopback run (44/44 checks, all

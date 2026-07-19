@@ -42,7 +42,9 @@ backend), not mockups.*
 Short synthesized cues distinguish ready, accepted badge/location/article, rejected
 scan, offline transition, and pick confirmation. On the GamePi20 they use the onboard
 speaker circuit via PWM audio on GPIO18; audio is asynchronous and fail-open, so a
-missing speaker or ALSA device never delays the workflow.
+missing speaker or ALSA device never delays the workflow. Every accepted scan also
+inverts the screen for 100 ms (the silent-mode equivalent of the cue), and a transient
+bottom line shows the last decode — payload, symbology, and decode latency.
 
 ## Hardware
 
@@ -127,7 +129,7 @@ identity are covered in [docs/FLEET_PROVISIONING.md](docs/FLEET_PROVISIONING.md)
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest                # unit + HTTP + functional-script suites (100 tests)
+.venv/bin/python -m pytest                # unit + HTTP + functional-script suites (108 tests)
 .venv/bin/python -m hht -c config/dev.toml --script tests/scripts/offline_pick.txt
 ```
 
@@ -145,6 +147,22 @@ Three layers, all traced to the numbered cases in
 - **Manual device cases** (display bring-up, decode latency, power-loss recovery,
   service autostart) for what only hardware can prove.
 
+The executed rounds live next to the spec — latest:
+[docs/TEST_REPORT_2026-07-18_offdevice.md](docs/TEST_REPORT_2026-07-18_offdevice.md)
+(108/108 automated cases green, PNG evidence per case).
+
+**On-device test rounds** (pull on the unit, follow the manual):
+
+- **Dry run — no WMS needed:** [docs/DEVICE_DRY_RUN.md](docs/DEVICE_DRY_RUN.md).
+  Real panel/buttons/camera/speaker against the mock WMS with the printed
+  [QR sheet](docs/img/test_qr_sheet.png) (`config/device-dry.toml`): scripted round
+  on the LCD, full pick cycle by hand, camera latency + debounce measurements,
+  audio/battery/SPI-clock baselines, power-cut queue durability, service checks.
+- **Hot run — live WMS over the LAN:**
+  [docs/LAN_E2E_RUNBOOK.md](docs/LAN_E2E_RUNBOOK.md). The Phase 3 closer: real
+  radio-loss offline drain, replay rejection + admin recovery, token expiry,
+  correlation-ID join — evidence lands in both repos.
+
 Logs are JSON-lines (one event per line: state transitions, scans with latency,
 rejections, queue activity, connectivity changes) — `python -m hht.tools.logreport`
 summarizes a shift.
@@ -159,9 +177,14 @@ the install scripts, so the next unit provisions in minutes
 ([docs/FLEET_PROVISIONING.md](docs/FLEET_PROVISIONING.md)). Phase 2 (full workflow
 against the mock WMS) passes the test suite on-device.
 
-Phase 3 (real WMS integration) code-complete on 2026-07-15: the client now speaks the
-real `warehouse-management` v1 contract ([API.md](API.md)) — badge + PIN login as WMS
+Phase 3 (real WMS integration) done off-device: the client speaks the real
+`warehouse-management` v1 contract ([API.md](API.md)) — badge + PIN login as WMS
 credentials, server-authoritative scans, Level 2 store-and-forward with dead-letter and
-SYNC FAILED surfacing, token-expiry handling — with the full suite (100 tests) green.
-Remaining: loopback e2e against a running WMS dev instance, then LAN e2e on the
-physical unit (see [PLAN.md](PLAN.md) Phase 3 checklist).
+SYNC FAILED surfacing, token-expiry handling — with the full suite (108 tests) green
+and a loopback e2e against a running WMS dev instance passed 44/44 on 2026-07-15
+(evidence in `warehouse-management/docs/evidence/`). The off-device regression round is
+reported in
+[docs/TEST_REPORT_2026-07-18_offdevice.md](docs/TEST_REPORT_2026-07-18_offdevice.md).
+Remaining before the freeze: the two on-device rounds —
+[dry run](docs/DEVICE_DRY_RUN.md) (bench, no WMS), then the
+[hot run](docs/LAN_E2E_RUNBOOK.md) (LAN e2e against the live WMS).
